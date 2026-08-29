@@ -1,0 +1,23 @@
+# Build & CMake
+build/
+build-*/
+out/
+bin/
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+
+# IDE / Editor
+.vs/
+.vscode/
+*.vcxproj*
+*.user
+
+# Database and test outputs
+*.db
+*.sqlite
+*.sqlite3
+test_*.db
+
+# vcpkg
+vcpkg_installed/

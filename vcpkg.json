@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "image-odb",
+  "version-semver": "0.1.0",
+  "description": "High-performance photo database and AVIF multi-frame archiving library and CLI tool",
+  "homepage": "https://github.com/kralk/image-ODB",
+  "dependencies": [
+    {
+      "name": "libavif",
+      "features": ["aom", "dav1d"]
+    },
+    "libjpeg-turbo",
+    "sqlite3",
+    "sqlitecpp",
+    "tinyexif",
+    "nlohmann-json",
+    "cli11",
+    "spdlog",
+    "blake3"
+  ]
+}
