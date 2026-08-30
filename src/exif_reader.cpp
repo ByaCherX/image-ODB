@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <regex>
 #include <spdlog/spdlog.h>
 
 namespace image_odb::metadata {
@@ -83,6 +84,18 @@ bool ExifReader::read_from_file(const std::filesystem::path& file_path, Photo& p
     extra["software"] = info.Software;
     extra["copyright"] = info.Copyright;
     extra["description"] = info.ImageDescription;
+
+    // Date fallback if EXIF timestamp missing or unparseable
+    if (!photo.capture_date.has_value()) {
+        if (auto fn_date = parse_date_from_filename(file_path); fn_date.has_value()) {
+            photo.capture_date = fn_date;
+            extra["date_source"] = "filename";
+        } else if (auto fs_date = get_file_modification_date(file_path); fs_date.has_value()) {
+            photo.capture_date = fs_date;
+            extra["date_source"] = "filesystem";
+        }
+    }
+
     photo.exif_json = extra;
 
     return true;
@@ -148,6 +161,96 @@ std::string ExifReader::format_iso8601(const std::chrono::system_clock::time_poi
     std::ostringstream ss;
     ss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
     return ss.str();
+}
+
+std::optional<std::chrono::system_clock::time_point> ExifReader::parse_date_from_filename(const std::filesystem::path& file_path) {
+    std::string stem = file_path.stem().string();
+
+    // Pattern 1: IMG_20240815_134520, 20240815_134520, 2024-08-15_13-45-20, 2024.08.15 13.45.20, Screenshot_20240815-134520, PXL_20240815_134520
+    static const std::regex dt_full_regex(
+        R"((?:IMG_|VID_|PXL_|Screenshot_|DSC_|WP_)?(\d{4})[-_.]?(\d{2})[-_.]?(\d{2})[-_ T](\d{2})[-_.:]?(\d{2})[-_.:]?(\d{2}))",
+        std::regex::optimize
+    );
+
+    std::smatch match;
+    if (std::regex_search(stem, match, dt_full_regex)) {
+        try {
+            int year = std::stoi(match[1].str());
+            int month = std::stoi(match[2].str());
+            int day = std::stoi(match[3].str());
+            int hour = std::stoi(match[4].str());
+            int min = std::stoi(match[5].str());
+            int sec = std::stoi(match[6].str());
+
+            if (year >= 1970 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
+                hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+                std::tm tm{};
+                tm.tm_year = year - 1900;
+                tm.tm_mon = month - 1;
+                tm.tm_mday = day;
+                tm.tm_hour = hour;
+                tm.tm_min = min;
+                tm.tm_sec = sec;
+                tm.tm_isdst = -1;
+
+#if defined(_WIN32)
+                time_t t = _mkgmtime(&tm);
+#else
+                time_t t = timegm(&tm);
+#endif
+                if (t != -1) {
+                    return std::chrono::system_clock::from_time_t(t);
+                }
+            }
+        } catch (...) {}
+    }
+
+    // Pattern 2: Date only like 2024-08-15 or 20240815
+    static const std::regex d_only_regex(
+        R"((?:IMG_|VID_|PXL_|Screenshot_|DSC_|WP_)?(\d{4})[-_.]?(\d{2})[-_.]?(\d{2}))",
+        std::regex::optimize
+    );
+
+    if (std::regex_search(stem, match, d_only_regex)) {
+        try {
+            int year = std::stoi(match[1].str());
+            int month = std::stoi(match[2].str());
+            int day = std::stoi(match[3].str());
+
+            if (year >= 1970 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                std::tm tm{};
+                tm.tm_year = year - 1900;
+                tm.tm_mon = month - 1;
+                tm.tm_mday = day;
+                tm.tm_hour = 12;
+                tm.tm_min = 0;
+                tm.tm_sec = 0;
+                tm.tm_isdst = -1;
+
+#if defined(_WIN32)
+                time_t t = _mkgmtime(&tm);
+#else
+                time_t t = timegm(&tm);
+#endif
+                if (t != -1) {
+                    return std::chrono::system_clock::from_time_t(t);
+                }
+            }
+        } catch (...) {}
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::chrono::system_clock::time_point> ExifReader::get_file_modification_date(const std::filesystem::path& file_path) {
+    try {
+        if (!std::filesystem::exists(file_path)) return std::nullopt;
+        auto ftime = std::filesystem::last_write_time(file_path);
+        auto sctp = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
+        return sctp;
+    } catch (...) {
+        return std::nullopt;
+    }
 }
 
 } // namespace image_odb::metadata

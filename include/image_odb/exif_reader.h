@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "image_odb/core/types.h"
 #include <filesystem>
@@ -33,6 +33,21 @@ public:
      * @return Optional time_point if parsing succeeded.
      */
     static std::optional<std::chrono::system_clock::time_point> parse_exif_date(const std::string& date_str);
+
+    /**
+     * @brief Parse capture date from filename using common camera and phone naming conventions.
+     * Examples: IMG_20240815_134520.jpg, 2024-08-15_13-45-20.jpg, Screenshot_20240815-134520.png, 20240815_134520.jpg
+     * @param file_path Path to the image file.
+     * @return Optional time_point if date pattern was recognized.
+     */
+    static std::optional<std::chrono::system_clock::time_point> parse_date_from_filename(const std::filesystem::path& file_path);
+
+    /**
+     * @brief Extract last write/modification time of file on disk as a fallback time_point.
+     * @param file_path Path to the file.
+     * @return Optional time_point.
+     */
+    static std::optional<std::chrono::system_clock::time_point> get_file_modification_date(const std::filesystem::path& file_path);
 
     /**
      * @brief Format a time_point to ISO8601 UTC string ("YYYY-MM-DDTHH:MM:SSZ").
