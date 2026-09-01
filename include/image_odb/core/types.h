@@ -22,6 +22,14 @@ enum class ImageFormat {
     TIFF,
     BMP
 };
+/**
+ * @brief Cache operating mode controlling RAM LRU and Disk thumbnail cache behavior.
+ */
+enum class CacheMode {
+    ALL,       /**< Both RAM LRU and Disk thumbnail cache enabled (default). */
+    DISK_ONLY, /**< Only Disk thumbnail cache enabled (.photo_cache), RAM LRU bypassed. */
+    RAM_ONLY,  /**< Only in-memory RAM LRU cache enabled, Disk cache bypassed. */
+    NONE       /**< All caching disabled (no disk I/O, no RAM LRU). */
 };
 
 /**

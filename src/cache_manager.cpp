@@ -12,24 +12,27 @@ CacheManager::CacheManager(std::filesystem::path cache_root, size_t ram_limit_by
 std::optional<ImageBuffer> CacheManager::get_or_create_preview(
     const std::string& identifier,
     const std::filesystem::path& source_file,
-    PreviewFormat format,
     uint32_t max_width,
     uint32_t max_height) {
     
-    std::string ram_key = identifier + "_" + (format == PreviewFormat::JPEG ? "jpg" : "avif");
-
-    // Tier 1: Check RAM LRU Cache
-    if (auto mem_hit = memory_cache_.get(ram_key); mem_hit.has_value()) {
-        spdlog::debug("Cache HIT (RAM): {}", ram_key);
-        return mem_hit;
+    // Tier 1: Check RAM LRU Cache (if enabled)
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::RAM_ONLY) {
+        if (auto mem_hit = memory_cache_.get(identifier); mem_hit.has_value()) {
+            spdlog::debug("Cache HIT (RAM): {}", identifier);
+            return mem_hit;
+        }
     }
 
-    // Tier 2: Check Disk Preview Cache
-    if (disk_cache_.has_preview(identifier, format)) {
-        if (auto disk_hit = disk_cache_.load_preview(identifier, format); disk_hit.has_value()) {
-            spdlog::debug("Cache HIT (Disk): {}", identifier);
-            memory_cache_.put(ram_key, *disk_hit);
-            return disk_hit;
+    // Tier 2: Check Disk Preview Cache (if enabled)
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::DISK_ONLY) {
+        if (disk_cache_.has_preview(identifier)) {
+            if (auto disk_hit = disk_cache_.load_preview(identifier); disk_hit.has_value()) {
+                spdlog::debug("Cache HIT (Disk): {}", identifier);
+                if (cache_mode_ == CacheMode::ALL) {
+                    memory_cache_.put(identifier, *disk_hit);
+                }
+                return disk_hit;
+            }
         }
     }
 
@@ -51,18 +54,30 @@ std::optional<ImageBuffer> CacheManager::get_or_create_preview(
         preview_img = std::move(full_img);
     }
 
-    // Persist to Disk Cache
-    disk_cache_.save_preview(identifier, preview_img, format);
+    // Persist to Disk Cache (if enabled)
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::DISK_ONLY) {
+        disk_cache_.save_preview(identifier, preview_img);
+    }
 
-    // Populate RAM Cache
-    memory_cache_.put(ram_key, preview_img);
+    // Populate RAM Cache (if enabled)
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::RAM_ONLY) {
+        memory_cache_.put(identifier, preview_img);
+    }
 
-    spdlog::debug("Synthesized & cached new preview: {}", identifier);
+    spdlog::debug("Synthesized AVIF preview (cache_mode={}): {}", static_cast<int>(cache_mode_), identifier);
     return preview_img;
 }
 
 void CacheManager::put_preview(const std::string& identifier,
                                const ImageBuffer& image) {
+    if (image.empty() || cache_mode_ == CacheMode::NONE) return;
+
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::DISK_ONLY) {
+        disk_cache_.save_preview(identifier, image);
+    }
+    if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::RAM_ONLY) {
+        memory_cache_.put(identifier, image);
+    }
 }
 
 void CacheManager::purge(bool memory_only) {

@@ -51,6 +51,16 @@ public:
     void purge(bool memory_only = false);
 
     /**
+     * @brief Set active cache mode policy (ALL, DISK_ONLY, RAM_ONLY, NONE).
+     */
+    void set_cache_mode(CacheMode mode) noexcept { cache_mode_ = mode; }
+
+    /**
+     * @brief Get active cache mode policy.
+     */
+    [[nodiscard]] CacheMode cache_mode() const noexcept { return cache_mode_; }
+
+    /**
      * @brief Access the in-memory LRU cache.
      */
     [[nodiscard]] LruMemoryCache& memory_cache() noexcept { return memory_cache_; }
@@ -63,6 +73,7 @@ public:
 private:
     DiskCache disk_cache_;
     LruMemoryCache memory_cache_;
+    CacheMode cache_mode_{CacheMode::ALL};
 };
 
 } // namespace image_odb::cache
