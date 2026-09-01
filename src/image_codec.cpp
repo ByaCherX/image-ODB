@@ -24,7 +24,8 @@ ImageBuffer ImageCodec::decode_file(const std::filesystem::path& file_path, cons
 
 ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::string& hint_format, const DecodeOptions& options) {
     (void)hint_format;
-    if (data.size() >= 2 && data[0] == 0xFF && data[1] == 0xD8) {
+    auto fmt = detect_format(data);
+    if (fmt == ImageFormat::JPEG) {
         return JpegCodec::decode_memory(data, options);
     }
     return {};
@@ -34,11 +35,11 @@ bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::pa
     if (image.empty()) return false;
 
     spdlog::debug("ImageCodec::encode_file: encoding to '{}' (format={}, quality={})",
-                  output_path.string(), options.format == PreviewFormat::AVIF ? "AVIF" : "JPEG", options.quality);
+                  output_path.string(), options.format == ImageFormat::AVIF ? "AVIF" : "JPEG", options.quality);
 
-    if (options.format == PreviewFormat::AVIF) {
+    if (options.format == ImageFormat::AVIF) {
         return AvifCodec::encode_still_image(image, output_path, options);
-    } else if (options.format == PreviewFormat::JPEG) {
+    } else if (options.format == ImageFormat::JPEG) {
         return JpegCodec::encode_file(image, output_path, options);
     }
     
@@ -47,7 +48,7 @@ bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::pa
 }
 
 bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path,
-                             PreviewFormat format, int quality) {
+                             ImageFormat format, int quality) {
     EncodeOptions options;
     options.format = format;
     options.quality = quality;

@@ -62,13 +62,7 @@ std::optional<ImageBuffer> CacheManager::get_or_create_preview(
 }
 
 void CacheManager::put_preview(const std::string& identifier,
-                               const ImageBuffer& image,
-                               PreviewFormat format) {
-    if (image.empty()) return;
-    std::string ram_key = identifier + "_" + (format == PreviewFormat::JPEG ? "jpg" : "avif");
-
-    disk_cache_.save_preview(identifier, image, format);
-    memory_cache_.put(ram_key, image);
+                               const ImageBuffer& image) {
 }
 
 void CacheManager::purge(bool memory_only) {

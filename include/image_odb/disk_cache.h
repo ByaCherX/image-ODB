@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "image_odb/core/types.h"
 #include <filesystem>
@@ -7,7 +7,7 @@
 namespace image_odb::cache {
 
 /**
- * @brief Disk-based preview thumbnail cache manager with multi-format persistence.
+ * @brief Disk-based AVIF preview thumbnail cache manager.
  */
 class DiskCache {
 public:
@@ -23,49 +23,41 @@ public:
     void initialize();
 
     /**
-     * @brief Get the absolute disk path for a cached preview file.
+     * @brief Get the absolute disk path for a cached AVIF preview file.
      * @param identifier Unique hash or photo ID string.
-     * @param format Preview format (AVIF, JPEG, WEBP).
      * @return Path to the preview file.
      */
-    [[nodiscard]] std::filesystem::path get_preview_path(const std::string& identifier,
-                                                        PreviewFormat format = PreviewFormat::AVIF) const;
+    [[nodiscard]] std::filesystem::path get_preview_path(const std::string& identifier) const;
 
     /**
-     * @brief Check if a preview thumbnail exists on disk.
+     * @brief Check if an AVIF preview thumbnail exists on disk.
      * @param identifier Unique hash or photo ID string.
-     * @param format Preview format.
      * @return True if file exists and is non-empty.
      */
-    [[nodiscard]] bool has_preview(const std::string& identifier,
-                                   PreviewFormat format = PreviewFormat::AVIF) const;
+    [[nodiscard]] bool has_preview(const std::string& identifier) const;
 
     /**
-     * @brief Save or update a preview thumbnail on disk.
+     * @brief Save or update an AVIF preview thumbnail on disk.
      * @param identifier Unique hash or photo ID string.
-     * @param image Decoded image buffer to encode and save.
-     * @param format Desired preview format (default: AVIF).
+     * @param image Decoded image buffer to encode and save as AVIF.
      * @param quality Quality factor (1-100, default: 80).
      * @return Path where preview was saved, or empty path on failure.
      */
     std::filesystem::path save_preview(const std::string& identifier,
                                        const ImageBuffer& image,
-                                       PreviewFormat format = PreviewFormat::AVIF,
                                        int quality = 80);
 
     /**
-     * @brief Load and decode a cached preview thumbnail from disk.
+     * @brief Load and decode a cached AVIF preview thumbnail from disk.
      * @param identifier Unique hash or photo ID string.
-     * @param format Expected preview format.
      * @return Optional ImageBuffer if file was loaded and decoded successfully.
      */
-    [[nodiscard]] std::optional<ImageBuffer> load_preview(const std::string& identifier,
-                                                         PreviewFormat format = PreviewFormat::AVIF) const;
+    [[nodiscard]] std::optional<ImageBuffer> load_preview(const std::string& identifier) const;
 
     /**
-     * @brief Delete a specific preview file from disk cache across any format.
+     * @brief Delete a specific preview file from disk cache.
      * @param identifier Unique hash or photo ID string.
-     * @return True if at least one preview file was removed.
+     * @return True if preview file was removed.
      */
     bool delete_preview(const std::string& identifier);
 

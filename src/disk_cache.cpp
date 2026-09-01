@@ -16,35 +16,30 @@ void DiskCache::initialize() {
     }
 }
 
-std::filesystem::path DiskCache::get_preview_path(const std::string& identifier, PreviewFormat format) const {
-    std::string ext = ".avif";
-    if (format == PreviewFormat::JPEG) ext = ".jpg";
-    else if (format == PreviewFormat::WEBP) ext = ".webp";
-
-    return previews_dir_ / (identifier + ext);
+std::filesystem::path DiskCache::get_preview_path(const std::string& identifier) const {
+    return previews_dir_ / (identifier + ".avif");
 }
 
-bool DiskCache::has_preview(const std::string& identifier, PreviewFormat format) const {
-    auto path = get_preview_path(identifier, format);
+bool DiskCache::has_preview(const std::string& identifier) const {
+    auto path = get_preview_path(identifier);
     return std::filesystem::exists(path) && std::filesystem::file_size(path) > 0;
 }
 
 std::filesystem::path DiskCache::save_preview(const std::string& identifier,
                                               const ImageBuffer& image,
-                                              PreviewFormat format,
                                               int quality) {
     initialize();
-    auto target_path = get_preview_path(identifier, format);
-    if (codec::ImageCodec::encode_file(image, target_path, format, quality)) {
-        spdlog::debug("DiskCache: Saved preview for '{}' to '{}'", identifier, target_path.string());
+    auto target_path = get_preview_path(identifier);
+    if (codec::ImageCodec::encode_file(image, target_path, ImageFormat::AVIF, quality)) {
+        spdlog::debug("DiskCache: Saved AVIF preview for '{}' to '{}'", identifier, target_path.string());
         return target_path;
     }
-    spdlog::warn("DiskCache: Failed to encode/save preview for '{}' to '{}'", identifier, target_path.string());
+    spdlog::warn("DiskCache: Failed to encode/save AVIF preview for '{}' to '{}'", identifier, target_path.string());
     return {};
 }
 
-std::optional<ImageBuffer> DiskCache::load_preview(const std::string& identifier, PreviewFormat format) const {
-    auto path = get_preview_path(identifier, format);
+std::optional<ImageBuffer> DiskCache::load_preview(const std::string& identifier) const {
+    auto path = get_preview_path(identifier);
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
         return std::nullopt;
     }
@@ -59,16 +54,14 @@ std::optional<ImageBuffer> DiskCache::load_preview(const std::string& identifier
 }
 
 bool DiskCache::delete_preview(const std::string& identifier) {
-    bool removed = false;
-    for (auto fmt : { PreviewFormat::AVIF, PreviewFormat::JPEG, PreviewFormat::WEBP }) {
-        auto path = get_preview_path(identifier, fmt);
-        if (std::filesystem::exists(path)) {
-            std::filesystem::remove(path);
-            spdlog::debug("DiskCache: Deleted cached file '{}'", path.string());
-            removed = true;
-        }
+    auto path = get_preview_path(identifier);
+    if (std::filesystem::exists(path)) {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        spdlog::debug("DiskCache: Deleted cached file '{}'", path.string());
+        return true;
     }
-    return removed;
+    return false;
 }
 
 void DiskCache::clear() {

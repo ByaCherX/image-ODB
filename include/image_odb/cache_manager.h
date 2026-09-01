@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "image_odb/core/types.h"
 #include "image_odb/lru_cache.h"
@@ -25,7 +25,6 @@ public:
      * @brief Retrieve preview from RAM, Disk, or synthesize from source on the fly.
      * @param identifier Unique cache key (e.g., photo ID string or hash).
      * @param source_file Original image file path on disk (used to decode if preview doesn't exist).
-     * @param format Desired preview format (AVIF or JPEG).
      * @param max_width Thumbnail max width (default: 500).
      * @param max_height Thumbnail max height (default: 500).
      * @return Decoded preview ImageBuffer.
@@ -33,7 +32,6 @@ public:
     std::optional<ImageBuffer> get_or_create_preview(
         const std::string& identifier,
         const std::filesystem::path& source_file,
-        PreviewFormat format = PreviewFormat::AVIF,
         uint32_t max_width = 500,
         uint32_t max_height = 500
     );
@@ -42,11 +40,9 @@ public:
      * @brief Store an explicit preview in both RAM and Disk cache.
      * @param identifier Unique cache key.
      * @param image Preview image buffer.
-     * @param format Preview format.
      */
     void put_preview(const std::string& identifier,
-                     const ImageBuffer& image,
-                     PreviewFormat format = PreviewFormat::AVIF);
+                     const ImageBuffer& image);
 
     /**
      * @brief Purge cache storage.

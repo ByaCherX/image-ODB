@@ -46,13 +46,13 @@ public:
      * @brief Encode an in-memory buffer to disk in the specified format (convenience overload).
      * @param image Source image buffer.
      * @param output_path Target file path.
-     * @param format Desired preview/output format.
+     * @param format Desired output container format.
      * @param quality Compression quality (1-100).
      * @return True if saved successfully.
      */
     static bool encode_file(const ImageBuffer& image,
                             const std::filesystem::path& output_path,
-                            PreviewFormat format = PreviewFormat::AVIF,
+                            ImageFormat format = ImageFormat::AVIF,
                             int quality = 80);
 
     /**

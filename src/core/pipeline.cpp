@@ -141,8 +141,8 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                 if (options.generate_previews) {
                     auto preview = codec::ImageCodec::resize_aspect_fit(img, 500, 500);
                     if (preview.empty()) preview = img;
-                    cache_mgr_.put_preview(hash, preview, options.preview_format);
-                    spdlog::debug("Pipeline: Saved preview thumbnail for '{}'", hash);
+                    cache_mgr_.put_preview(p.hash, preview);
+                    spdlog::debug("Pipeline: Saved AVIF preview thumbnail for '{}'", p.hash);
                 }
             } else {
                 spdlog::warn("Pipeline: Could not decode image file: '{}'", file_path.string());

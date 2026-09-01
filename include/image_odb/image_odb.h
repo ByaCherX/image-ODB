@@ -71,9 +71,9 @@ public:
                        const std::filesystem::path& output_path);
 
     /**
-     * @brief Retrieve thumbnail preview (from memory cache, disk cache, or synthesized on the fly).
+     * @brief Retrieve AVIF thumbnail preview (from memory cache, disk cache, or synthesized on the fly).
      */
-    std::optional<ImageBuffer> get_preview(int64_t photo_id, PreviewFormat format = PreviewFormat::AVIF);
+    std::optional<ImageBuffer> get_preview(int64_t photo_id);
 
     /**
      * @brief Clear cache storage.

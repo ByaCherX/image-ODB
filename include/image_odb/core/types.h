@@ -11,25 +11,17 @@
 namespace image_odb {
 
 /**
- * @brief Supported image container and preview formats for caching, thumbnail synthesis, and export.
- * 
- * - AV1 Image File Format (.avif).
- *   Next-generation container based on the AV1 video codec.
- *   Features superior compression efficiency (typically 50% smaller than JPEG at equal visual quality),
- *   support for high bit depth (10/12-bit HDR), alpha channel transparency, and multi-frame animation/burst sequences.
- * 
- * - Joint Photographic Experts Group format (.jpg, .jpeg / JFIF).
- *   Standard 8-bit lossy image format using Discrete Cosine Transform (DCT).
- *   Provides universal compatibility across all operating systems, web browsers, and legacy hardware.
- * 
- * - WebP image format (.webp).
- *   Modern image format developed by Google based on the VP8 video codec.
- *   Provides efficient lossy and lossless compression with alpha support, widely adopted across web platforms.
+ * @brief Canonical format identifiers for image containers and codecs.
  */
-enum class PreviewFormat {
-    AVIF,
+enum class ImageFormat {
+    UNKNOWN,
     JPEG,
-    WEBP
+    AVIF,
+    PNG,
+    WEBP,
+    TIFF,
+    BMP
+};
 };
 
 /**
@@ -135,7 +127,7 @@ struct ImageBuffer {
  * @brief Fine-grained configuration parameters for image encoding in ImageCodec and AvifCodec.
  */
 struct EncodeOptions {
-    PreviewFormat format{PreviewFormat::AVIF}; /**< Output container / preview format */
+    ImageFormat format{ImageFormat::AVIF}; /**< Output container format */
     int quality{80}; /**< Lossy compression quality factor (1-100) */
     int speed{6}; /**< CPU encoding speed vs compression density trade-off (0-10) */
     ChromaSubsampling subsampling{ChromaSubsampling::YUV420}; /**< Chroma subsampling mode */
@@ -242,25 +234,25 @@ struct Photo {
     // Geometry & Format
     ImageDimensions dimensions; /**< Pixel dimensions and EXIF orientation. */
     std::string mime_type;      /**< MIME content type string (e.g., "image/jpeg", "image/avif"). */
-
+ 
     // Timestamp & Geolocation
     std::optional<std::chrono::system_clock::time_point> capture_date; /**< UTC capture date and time recorded in EXIF metadata. */
     GeoLocation location; /**< GPS coordinates and reverse-geocoded place information. */
-
+ 
     // Hardware & Optics
     CameraInfo camera;      /**< Camera body hardware properties. */
     LensInfo lens;          /**< Lens and optical focal properties. */
     ExposureInfo exposure;  /**< Photometric exposure settings. */
-
+ 
     // Perceptual Hashing & Thumbnail Preview
     uint64_t phash{0};      /**< 64-bit DCT perceptual hash for fast visual similarity indexing. */
     std::string thumbhash;  /**< Compact base64-encoded ThumbHash string representation. */
-
+ 
     // Multi-frame / Burst Information
     bool is_burst_group{false};     /**< True if this entity is a multi-frame AVIF burst group container. */
     uint32_t frame_count{1};        /**< Total frame count (1 for still photos, >= 2 for burst containers). */
     std::vector<BurstFrame> frames; /**< Collection of child burst frame records if is_burst_group is true. */
-
+ 
     // Extended / Raw EXIF & Timestamps
     nlohmann::json exif_json; /**< Structured JSON object holding all extracted EXIF/TIFF tags. */
     /**
@@ -268,13 +260,12 @@ struct Photo {
      */
     std::chrono::system_clock::time_point created_at{std::chrono::system_clock::now()};
 };
-
+ 
 /**
  * @brief Configuration parameters for directory scanning, ingestion, and burst clustering.
  */
 struct ScanOptions {
     bool group_bursts{false}; /**< Automatically detect and group rapid burst sequences into AVIF containers. Default: false. */
-    PreviewFormat preview_format{PreviewFormat::AVIF}; /**< Target format for generating preview cache files (AVIF, JPEG, WEBP). Default: AVIF. */
     uint32_t max_threads{0}; /**< Maximum parallel worker threads (0 = automatic hardware concurrency). Default: 0. */
     uint32_t burst_time_window_seconds{3}; /**< Maximum elapsed time in seconds between consecutive shots to qualify as a burst. Default: 3s. */
     uint32_t burst_max_hamming_distance{5}; /**< Maximum Hamming distance between pHashes to qualify as the same burst scene. Default: 5. */

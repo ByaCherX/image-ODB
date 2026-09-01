@@ -57,7 +57,7 @@ bool Engine::extract_frame(const std::filesystem::path& avif_path,
     return codec::ImageCodec::encode_file(frame, output_path);
 }
 
-std::optional<ImageBuffer> Engine::get_preview(int64_t photo_id, PreviewFormat format) {
+std::optional<ImageBuffer> Engine::get_preview(int64_t photo_id) {
     auto photo = database_->find_by_id(photo_id);
     if (!photo.has_value()) {
         return std::nullopt;
@@ -69,7 +69,7 @@ std::optional<ImageBuffer> Engine::get_preview(int64_t photo_id, PreviewFormat f
     }
 
     std::string cache_key = photo->hash.empty() ? std::to_string(photo_id) : photo->hash;
-    return cache_manager_->get_or_create_preview(cache_key, full_source, format);
+    return cache_manager_->get_or_create_preview(cache_key, full_source);
 }
 
 void Engine::clear_cache(bool memory_only) {
