@@ -1,5 +1,6 @@
 #include "image_odb/avif_codec.h"
 #include "image_odb/image_codec.h"
+#include "image_odb/image_odb.h"
 #include <avif/avif.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -8,6 +9,17 @@
 namespace image_odb::codec {
 
 namespace {
+
+static constexpr std::string_view signature = "image-odb";
+static constexpr std::string_view APP_XMP_METADATA = R"(<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description
+    rdf:about="image-odb is a database for images, and it also supports conversions to AVIF format."
+    xmlns:tiff="http://ns.adobe.com/tiff/1.0/">
+   <tiff:Software>image-odb )" IMAGE_ODB_VERSION_STRING R"(</tiff:Software>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>)";
 
 bool write_file_bytes(const std::filesystem::path& path, const uint8_t* data, size_t size) {
     if (auto parent = path.parent_path(); !parent.empty() && !std::filesystem::exists(parent)) {
@@ -77,6 +89,13 @@ avifImage* create_avif_image_from_buffer(const ImageBuffer& img, const EncodeOpt
     rgb.depth = (img.bit_depth() > 8) ? 16 : 8;
     rgb.pixels = const_cast<uint8_t*>(img.data.data());
     rgb.rowBytes = img.width * img.channels * (rgb.depth / 8);
+
+    /**< XMP Metadata */
+    avifImageSetMetadataXMP(
+        avif, 
+        reinterpret_cast<const uint8_t*>(APP_XMP_METADATA.data()), 
+        APP_XMP_METADATA.size()
+    );
 
     avifResult res = avifImageRGBToYUV(avif, &rgb);
     if (res != AVIF_RESULT_OK) {
@@ -259,8 +278,31 @@ ImageBuffer AvifCodec::extract_frame(const std::filesystem::path& avif_path,
         return buffer;
     }
 
+#ifdef IMAGE_SEQUENTAL_DETECT
+    bool is_single_image = (decoder->imageCount == 1);
+    bool is_sequence = (decoder->imageSequenceTrackPresent == AVIF_TRUE);
+    if (is_single_image && !is_sequence) {
+        // only one image is still_image
+    } else {
+        // multi-frame / burst sequence / animation
+    }
+#endif
+
+    /**< is_encoded_by_image_odb */
+    bool matched = false;
+    if (decoder->image && decoder->image->xmp.size > 0 && decoder->image->xmp.data != nullptr) {
+        std::string_view xmp_str(
+            reinterpret_cast<const char*>(decoder->image->xmp.data),
+            decoder->image->xmp.size
+        );
+        // check signature
+        if (xmp_str.find(signature) != std::string_view::npos) {
+            matched = true;
+        }
+    }
+
     if (frame_index >= static_cast<uint32_t>(decoder->imageCount)) {
-        spdlog::warn("Requested frame index {} exceeds total image count {}", frame_index, decoder->imageCount);
+        spdlog::error("Requested frame index {} exceeds total image count {}", frame_index, decoder->imageCount);
         avifDecoderDestroy(decoder);
         return buffer;
     }
@@ -281,7 +323,9 @@ ImageBuffer AvifCodec::extract_frame(const std::filesystem::path& avif_path,
     avifRGBImageSetDefaults(&rgb, decoder->image);
     rgb.format = want_alpha ? AVIF_RGB_FORMAT_RGBA : AVIF_RGB_FORMAT_RGB;
     rgb.depth = is_16bit ? 16 : 8;
-    avifRGBImageAllocatePixels(&rgb);
+    if (avifRGBImageAllocatePixels(&rgb) != AVIF_RESULT_OK) {
+        spdlog::error("avifRGBImageAllocate failed, but countinue anyway");
+    }
 
     result = avifImageYUVToRGB(decoder->image, &rgb);
     if (result == AVIF_RESULT_OK) {

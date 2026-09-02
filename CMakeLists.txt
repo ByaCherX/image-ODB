@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Option to build tests and CLI
-option(IMAGE_ODB_BUILD_CLI "Build image-cli command line utility" ON)
+option(IMAGE_ODB_BUILD_CLI "Build image_cli command line utility" ON)
 option(IMAGE_ODB_BUILD_TESTS "Build unit and integration tests" ON)
 
 # Find Required Dependencies via vcpkg
