@@ -8,6 +8,7 @@ add_executable(test_image_odb
     test_exif.cpp
     test_cache.cpp
     test_pipeline.cpp
+    test_convert.cpp
 )
 
 target_link_libraries(test_image_odb

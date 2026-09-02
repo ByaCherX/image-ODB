@@ -7,19 +7,49 @@
 
 namespace image_odb::codec {
 
-ImageBuffer ImageCodec::decode_file(const std::filesystem::path& file_path, const DecodeOptions& options) {
+ImageFormat ImageCodec::detect_format(const std::filesystem::path& file_path) {
     auto ext = file_path.extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    if (ext == ".jpg" || ext == ".jpeg" || ext == ".jfif") return ImageFormat::JPEG;
+    if (ext == ".avif" || ext == ".avifs") return ImageFormat::AVIF;
+    if (ext == ".png") return ImageFormat::PNG;
+    if (ext == ".webp") return ImageFormat::WEBP;
+    if (ext == ".tif" || ext == ".tiff") return ImageFormat::TIFF;
+    if (ext == ".bmp") return ImageFormat::BMP;
+    return ImageFormat::UNKNOWN;
+}
 
-    spdlog::debug("ImageCodec::decode_file: decoding '{}' (ext: '{}')", file_path.string(), ext);
-    if (ext == ".jpg" || ext == ".jpeg") {
-        return JpegCodec::decode_file(file_path, options);
-    } else if (ext == ".avif") {
-        return AvifCodec::extract_frame(file_path, 0, options);
+ImageFormat ImageCodec::detect_format(std::span<const uint8_t> data) {
+    if (data.size() >= 2 && data[0] == 0xFF && data[1] == 0xD8) return ImageFormat::JPEG;
+    if (data.size() >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') return ImageFormat::PNG;
+    if (data.size() >= 12 && data[0] == 'R' && data[1] == 'I' && data[2] == 'F' && data[3] == 'F' &&
+        data[8] == 'W' && data[9] == 'E' && data[10] == 'B' && data[11] == 'P') return ImageFormat::WEBP;
+    if (data.size() >= 12 && data[4] == 'f' && data[5] == 't' && data[6] == 'y' && data[7] == 'p') {
+        return ImageFormat::AVIF;
     }
+    return ImageFormat::UNKNOWN;
+}
 
-    spdlog::warn("Unsupported image extension for decoding: {}", ext);
-    return {};
+ImageBuffer ImageCodec::decode_file(const std::filesystem::path& file_path, const DecodeOptions& options) {
+    auto fmt = detect_format(file_path);
+    spdlog::debug("ImageCodec::decode_file: decoding '{}' (format={})", file_path.string(), static_cast<int>(fmt));
+
+    switch (fmt) {
+        case ImageFormat::JPEG:
+            return JpegCodec::decode_file(file_path, options);
+        case ImageFormat::AVIF:
+            return AvifCodec::extract_frame(file_path, 0, options);
+        case ImageFormat::PNG:
+        case ImageFormat::WEBP:
+        case ImageFormat::TIFF:
+        case ImageFormat::BMP:
+            spdlog::warn("Decoding support for {} will be available in future codec extensions: {}",
+                         file_path.extension().string(), file_path.string());
+            return {};
+        default:
+            spdlog::warn("Unsupported image format for decoding: {}", file_path.string());
+            return {};
+    }
 }
 
 ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::string& hint_format, const DecodeOptions& options) {

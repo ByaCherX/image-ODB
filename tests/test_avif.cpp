@@ -114,7 +114,7 @@ void run_avif_codec_tests() {
     // Test 8: EncodeOptions with ChromaSubsampling (YUV444) and 10-bit HDR ColorProfile
     const auto avif_hdr_path = temp_dir / "sample_hdr.avif";
     EncodeOptions hdr_opts;
-    hdr_opts.format = PreviewFormat::AVIF;
+    hdr_opts.format = ImageFormat::AVIF;
     hdr_opts.quality = 90;
     hdr_opts.speed = 6;
     hdr_opts.subsampling = ChromaSubsampling::YUV444;

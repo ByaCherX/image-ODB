@@ -63,6 +63,16 @@ public:
      * @return Resized ImageBuffer.
      */
     static ImageBuffer resize_aspect_fit(const ImageBuffer& src, uint32_t max_width, uint32_t max_height);
+
+    /**
+     * @brief Detect image container format from file extension.
+     */
+    static ImageFormat detect_format(const std::filesystem::path& file_path);
+
+    /**
+     * @brief Detect image format from magic bytes in header buffer.
+     */
+    static ImageFormat detect_format(std::span<const uint8_t> data);
 };
 
 } // namespace image_odb::codec

@@ -86,30 +86,30 @@ void run_cache_tests() {
 
         auto img = make_dummy_image(100, 100, 200);
 
-        // Save preview as AVIF and JPEG
-        auto avif_saved = disk.save_preview("photo_101", img, PreviewFormat::AVIF);
-        auto jpg_saved = disk.save_preview("photo_102", img, PreviewFormat::JPEG);
+        // Save preview as AVIF
+        auto avif_saved = disk.save_preview("photo_101", img);
+        auto avif_saved2 = disk.save_preview("photo_102", img);
 
-        if (avif_saved.empty() || jpg_saved.empty()) {
+        if (avif_saved.empty() || avif_saved2.empty()) {
             throw std::runtime_error("DiskCache::save_preview failed");
         }
 
-        if (!disk.has_preview("photo_101", PreviewFormat::AVIF)) {
+        if (!disk.has_preview("photo_101")) {
             throw std::runtime_error("DiskCache::has_preview returned false for AVIF");
         }
-        if (!disk.has_preview("photo_102", PreviewFormat::JPEG)) {
-            throw std::runtime_error("DiskCache::has_preview returned false for JPEG");
+        if (!disk.has_preview("photo_102")) {
+            throw std::runtime_error("DiskCache::has_preview returned false for photo_102");
         }
 
         // Load preview
-        auto loaded_avif = disk.load_preview("photo_101", PreviewFormat::AVIF);
+        auto loaded_avif = disk.load_preview("photo_101");
         if (!loaded_avif.has_value() || loaded_avif->width != 100 || loaded_avif->height != 100) {
             throw std::runtime_error("DiskCache::load_preview failed for AVIF");
         }
 
-        auto loaded_jpg = disk.load_preview("photo_102", PreviewFormat::JPEG);
-        if (!loaded_jpg.has_value() || loaded_jpg->width != 100 || loaded_jpg->height != 100) {
-            throw std::runtime_error("DiskCache::load_preview failed for JPEG");
+        auto loaded_avif2 = disk.load_preview("photo_102");
+        if (!loaded_avif2.has_value() || loaded_avif2->width != 100 || loaded_avif2->height != 100) {
+            throw std::runtime_error("DiskCache::load_preview failed for photo_102");
         }
 
         if (disk.preview_count() != 2 || disk.total_size_bytes() == 0) {
@@ -120,7 +120,7 @@ void run_cache_tests() {
         if (!disk.delete_preview("photo_101")) {
             throw std::runtime_error("DiskCache::delete_preview failed");
         }
-        if (disk.has_preview("photo_101", PreviewFormat::AVIF)) {
+        if (disk.has_preview("photo_101")) {
             throw std::runtime_error("Deleted preview still exists on disk");
         }
 
@@ -142,7 +142,7 @@ void run_cache_tests() {
         CacheManager manager(temp_cache_dir / ".two_tier_cache", 10 * 1024 * 1024);
 
         // Cascade 1: Synthesis from source file
-        auto preview1 = manager.get_or_create_preview("orig_1", source_img_path, PreviewFormat::AVIF, 200, 200);
+        auto preview1 = manager.get_or_create_preview("orig_1", source_img_path, 200, 200);
         if (!preview1.has_value() || preview1->width > 200 || preview1->height > 200) {
             throw std::runtime_error("CacheManager failed to synthesize and downscale preview");
         }
@@ -151,7 +151,7 @@ void run_cache_tests() {
         if (manager.memory_cache().hit_count() != 0) {
             throw std::runtime_error("Expected 0 initial RAM hits before second access");
         }
-        auto preview2 = manager.get_or_create_preview("orig_1", source_img_path, PreviewFormat::AVIF, 200, 200);
+        auto preview2 = manager.get_or_create_preview("orig_1", source_img_path, 200, 200);
         if (!preview2.has_value() || manager.memory_cache().hit_count() != 1) {
             throw std::runtime_error("CacheManager failed to serve from RAM cache on second lookup");
         }
@@ -162,8 +162,8 @@ void run_cache_tests() {
             throw std::runtime_error("RAM cache should be empty after memory-only purge");
         }
 
-        auto preview3 = manager.get_or_create_preview("orig_1", source_img_path, PreviewFormat::AVIF, 200, 200);
-        if (!preview3.has_value() || !manager.memory_cache().contains("orig_1_avif")) {
+        auto preview3 = manager.get_or_create_preview("orig_1", source_img_path, 200, 200);
+        if (!preview3.has_value() || !manager.memory_cache().contains("orig_1")) {
             throw std::runtime_error("CacheManager failed to reload preview from disk and repopulate RAM cache");
         }
 

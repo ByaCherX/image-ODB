@@ -18,16 +18,6 @@
 
 namespace image_odb::core {
 
-namespace {
-
-bool is_supported_image(const std::filesystem::path& path) {
-    auto ext = path.extension().string();
-    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return (ext == ".jpg" || ext == ".jpeg" || ext == ".avif" || ext == ".png" || ext == ".webp");
-}
-
-} // namespace
-
 std::string Pipeline::compute_hash(const std::filesystem::path& file_path) {
     std::ifstream file(file_path, std::ios::binary);
     if (!file.is_open()) return "";
@@ -58,8 +48,10 @@ Pipeline::Pipeline(db::Database& database, cache::CacheManager& cache_manager, s
 uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                                 const ScanOptions& options,
                                 ProgressCallback callback) {
-    spdlog::debug("Pipeline::execute_scan: starting scan on '{}' (recursive={}, group_bursts={})",
-                  scan_root.string(), options.recursive, options.group_bursts);
+    spdlog::debug("Pipeline::execute_scan: starting scan on '{}' (recursive={}, group_bursts={}, convert_to_avif={})",
+                  scan_root.string(), options.recursive, options.group_bursts, options.convert_to_avif);
+
+    cache_mgr_.set_cache_mode(options.cache_mode);
 
     if (!std::filesystem::exists(scan_root)) {
         spdlog::warn("Scan root directory does not exist: {}", scan_root.string());
@@ -103,49 +95,78 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
     auto worker_task = [&](size_t start_idx, size_t end_idx) {
         std::vector<Photo> local_photos;
         for (size_t i = start_idx; i < end_idx; ++i) {
-            const auto& file_path = candidate_files[i];
+            const auto& original_file_path = candidate_files[i];
+            std::filesystem::path effective_path = original_file_path;
 
-            std::string hash = compute_hash(file_path);
-            if (hash.empty()) continue;
+            std::string initial_hash = compute_hash(original_file_path);
+            if (initial_hash.empty()) continue;
 
             // Check if already in DB
             {
                 std::lock_guard<std::mutex> lock(results_mutex);
-                if (db_.exists_by_hash(hash) || db_.exists_by_path(file_path)) {
-                    spdlog::debug("Pipeline: Skipping already indexed photo: '{}'", file_path.string());
+                if (db_.exists_by_hash(initial_hash) || db_.exists_by_path(original_file_path)) {
+                    spdlog::debug("Pipeline: Skipping already indexed photo: '{}'", original_file_path.string());
                     processed_count++;
-                    if (callback) callback(processed_count.load(), total_files, file_path.filename().string());
+                    if (callback) callback(processed_count.load(), total_files, original_file_path.filename().string());
                     continue;
                 }
             }
 
             // Extract EXIF
             Photo p;
-            metadata::ExifReader::read_from_file(file_path, p);
-            p.file_path = file_path;
-            p.file_size = std::filesystem::file_size(file_path);
-            p.hash = hash;
+            metadata::ExifReader::read_from_file(original_file_path, p);
+            p.file_path = original_file_path;
+            p.file_size = std::filesystem::file_size(original_file_path);
+            p.hash = initial_hash;
 
             // Decode and hash
-            auto img = codec::ImageCodec::decode_file(file_path);
+            auto img = codec::ImageCodec::decode_file(original_file_path);
             if (!img.empty()) {
                 p.dimensions.width = img.width;
                 p.dimensions.height = img.height;
                 p.phash = hash::PHash::compute(img);
                 p.thumbhash = hash::ThumbHash::encode_to_base64(img);
 
+                // If convert_to_avif is active and format is not already AVIF
+                if (options.convert_to_avif && codec::ImageCodec::detect_format(original_file_path) != ImageFormat::AVIF) {
+                    std::filesystem::path target_avif;
+                    if (!options.convert_output_dir.empty()) {
+                        if (!std::filesystem::exists(options.convert_output_dir)) {
+                            std::filesystem::create_directories(options.convert_output_dir);
+                        }
+                        target_avif = options.convert_output_dir / (original_file_path.stem().string() + ".avif");
+                    } else {
+                        target_avif = original_file_path.parent_path() / (original_file_path.stem().string() + ".avif");
+                    }
+
+                    EncodeOptions enc_opts = options.convert_options;
+                    enc_opts.format = ImageFormat::AVIF;
+                    if (codec::AvifCodec::encode_still_image(img, target_avif, enc_opts)) {
+                        spdlog::info("Pipeline: Converted '{}' -> '{}'", original_file_path.filename().string(), target_avif.filename().string());
+                        if (options.delete_source && target_avif != original_file_path) {
+                            std::error_code ec;
+                            std::filesystem::remove(original_file_path, ec);
+                        }
+                        effective_path = target_avif;
+                        p.file_path = target_avif;
+                        p.file_size = std::filesystem::file_size(target_avif);
+                        p.hash = compute_hash(target_avif);
+                        p.mime_type = "image/avif";
+                    }
+                }
+
                 spdlog::debug("Pipeline: Processed '{}' ({}x{}, pHash: 0x{:016x}, ThumbHash: '{}')",
-                              file_path.filename().string(), p.dimensions.width, p.dimensions.height, p.phash, p.thumbhash);
+                              effective_path.filename().string(), p.dimensions.width, p.dimensions.height, p.phash, p.thumbhash);
 
                 // Generate preview thumbnail if requested
-                if (options.generate_previews) {
+                if (options.generate_previews && options.cache_mode != CacheMode::NONE) {
                     auto preview = codec::ImageCodec::resize_aspect_fit(img, 500, 500);
                     if (preview.empty()) preview = img;
                     cache_mgr_.put_preview(p.hash, preview);
                     spdlog::debug("Pipeline: Saved AVIF preview thumbnail for '{}'", p.hash);
                 }
             } else {
-                spdlog::warn("Pipeline: Could not decode image file: '{}'", file_path.string());
+                spdlog::warn("Pipeline: Could not decode image file: '{}'", original_file_path.string());
             }
 
             local_photos.push_back(std::move(p));
@@ -153,7 +174,7 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
 
             if (callback) {
                 std::lock_guard<std::mutex> lock(results_mutex);
-                callback(processed_count.load(), total_files, file_path.filename().string());
+                callback(processed_count.load(), total_files, original_file_path.filename().string());
             }
         }
 

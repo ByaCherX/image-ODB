@@ -82,6 +82,26 @@ public:
     void clear_cache(bool memory_only = false);
 
     /**
+     * @brief Convert an individual image file on disk to a target format.
+     */
+    bool convert_file(const std::filesystem::path& input_path,
+                      const std::filesystem::path& output_path,
+                      const EncodeOptions& options);
+
+    /**
+     * @brief Convert an indexed photo in the database by ID to a target format file.
+     */
+    bool convert_photo_by_id(int64_t photo_id,
+                             const std::filesystem::path& output_path,
+                             const EncodeOptions& options);
+
+    /**
+     * @brief Convert multiple/all photos in database to target format.
+     */
+    uint64_t convert_all(const ConvertOptions& options,
+                         ProgressCallback callback = nullptr);
+
+    /**
      * @brief Access the underlying database instance.
      */
     [[nodiscard]] db::Database& database() noexcept { return *database_; }

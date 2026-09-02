@@ -2,10 +2,13 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <array>
 #include <vector>
 #include <optional>
 #include <chrono>
 #include <filesystem>
+#include <cctype>
 #include <nlohmann/json.hpp>
 
 namespace image_odb {
@@ -22,6 +25,107 @@ enum class ImageFormat {
     TIFF,
     BMP
 };
+
+/**
+ * @brief Canonical list of supported image file extensions for discovery, indexing, and codecs.
+ */
+inline constexpr std::array<std::string_view, 10> SUPPORTED_IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs", ".png", ".webp", ".tif", ".tiff", ".bmp"
+};
+
+/**
+ * @brief Supported image file extensions that currently support direct decoding.
+ */
+inline constexpr std::array<std::string_view, 5> SUPPORTED_DECODE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs"
+};
+
+/**
+ * @brief Supported image container formats for encoding.
+ */
+inline constexpr std::array<ImageFormat, 2> SUPPORTED_ENCODE_FORMATS = {
+    ImageFormat::AVIF, ImageFormat::JPEG
+};
+
+/**
+ * @brief Check if a given file extension string represents a supported image format.
+ * Comparison is case-insensitive.
+ * @param extension Extension string (e.g., ".jpg", ".AVIF").
+ * @return True if supported, false otherwise.
+ */
+[[nodiscard]] inline bool is_supported_extension(std::string_view extension) noexcept {
+    for (const auto& ext : SUPPORTED_IMAGE_EXTENSIONS) {
+        if (ext.size() == extension.size()) {
+            bool match = true;
+            for (size_t i = 0; i < ext.size(); ++i) {
+                if (static_cast<char>(std::tolower(static_cast<unsigned char>(extension[i]))) != ext[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Check if a filesystem path has a supported image extension.
+ * @param path Path to check.
+ * @return True if supported, false otherwise.
+ */
+[[nodiscard]] inline bool is_supported_image(const std::filesystem::path& path) {
+    return is_supported_extension(path.extension().string());
+}
+
+/**
+ * @brief Check if direct decoding is supported for the given image format.
+ */
+[[nodiscard]] constexpr bool is_decoding_supported(ImageFormat format) noexcept {
+    return format == ImageFormat::JPEG || format == ImageFormat::AVIF;
+}
+
+[[nodiscard]] constexpr bool is_decoding_supported_format(ImageFormat format) noexcept {
+    return is_decoding_supported(format);
+}
+
+/**
+ * @brief Check if direct decoding is supported for the given file extension string (e.g., ".jpg", ".AVIF").
+ */
+[[nodiscard]] inline bool is_decoding_supported_extension(std::string_view extension) noexcept {
+    for (const auto& ext : SUPPORTED_DECODE_EXTENSIONS) {
+        if (ext.size() == extension.size()) {
+            bool match = true;
+            for (size_t i = 0; i < ext.size(); ++i) {
+                if (static_cast<char>(std::tolower(static_cast<unsigned char>(extension[i]))) != ext[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Check if direct decoding is supported for the given filesystem path.
+ */
+[[nodiscard]] inline bool is_decoding_supported_image(const std::filesystem::path& path) {
+    return is_decoding_supported_extension(path.extension().string());
+}
+
+/**
+ * @brief Check if encoding is supported for the given image format.
+ */
+[[nodiscard]] constexpr bool is_encoding_supported(ImageFormat format) noexcept {
+    return format == ImageFormat::AVIF || format == ImageFormat::JPEG;
+}
+
+[[nodiscard]] constexpr bool is_encoding_supported_format(ImageFormat format) noexcept {
+    return is_encoding_supported(format);
+}
+
 /**
  * @brief Cache operating mode controlling RAM LRU and Disk thumbnail cache behavior.
  */
@@ -141,6 +245,8 @@ struct EncodeOptions {
     ChromaSubsampling subsampling{ChromaSubsampling::YUV420}; /**< Chroma subsampling mode */
     int bit_depth{8}; /**< Bit depth for AVIF encoder (8, 10, or 12 bits) */
     bool lossless{false}; /**< when true, enables lossless compression mode */
+    bool embed_thumbnail{false}; /**< when true, downscales and embeds thumbnail inside the AVIF container */
+    uint32_t thumbnail_dimension{256}; /**< Maximum bounding box dimension for embedded thumbnail */
 };
 
 /**
@@ -278,7 +384,27 @@ struct ScanOptions {
     uint32_t burst_time_window_seconds{3}; /**< Maximum elapsed time in seconds between consecutive shots to qualify as a burst. Default: 3s. */
     uint32_t burst_max_hamming_distance{5}; /**< Maximum Hamming distance between pHashes to qualify as the same burst scene. Default: 5. */
     bool recursive{true}; /**< Recursively traverse nested subdirectories during file discovery. Default: true. */
-    bool generate_previews{true}; /**< Generate and cache downscaled thumbnail previews during ingestion. Default: true. */
+    bool generate_previews{true}; /**< Generate and cache downscaled AVIF thumbnail previews during ingestion. Default: true. */
+    CacheMode cache_mode{CacheMode::ALL}; /**< Cache policy for preview caching during scan. Default: ALL. */
+    bool convert_to_avif{false}; /**< Convert discovered non-AVIF images to AVIF format during ingestion. */
+    EncodeOptions convert_options{}; /**< Encoding options when convert_to_avif is active. */
+    bool delete_source{false}; /**< Delete original source file after converting to AVIF. */
+    std::filesystem::path convert_output_dir; /**< Optional destination directory for converted files (empty = same folder). */
+};
+ 
+/**
+ * @brief Options for converting image files or database entries to/from AVIF and other formats.
+ */
+struct ConvertOptions {
+    std::optional<std::filesystem::path> input_path;
+    std::optional<std::filesystem::path> output_path;
+    std::optional<int64_t> photo_id;
+    bool all_photos{false};
+    ImageFormat target_format{ImageFormat::AVIF};
+    EncodeOptions encode_options{};
+    bool delete_source{false};
+    CacheMode cache_mode{CacheMode::ALL};
+    std::filesystem::path output_directory;
 };
 
 /**

@@ -143,7 +143,7 @@ void run_pipeline_tests() {
 
         // Verify preview retrieval
         for (const auto& p : all_photos) {
-            auto preview = engine.get_preview(p.id, PreviewFormat::AVIF);
+            auto preview = engine.get_preview(p.id);
             if (!preview.has_value() || preview->empty()) {
                 throw std::runtime_error("Failed to retrieve preview for photo id: " + std::to_string(p.id));
             }

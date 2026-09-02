@@ -93,6 +93,14 @@ avifImage* create_avif_image_from_buffer(const ImageBuffer& img, const EncodeOpt
 bool AvifCodec::encode_still_image(const ImageBuffer& image,
                                    const std::filesystem::path& output_path,
                                    const EncodeOptions& options) {
+    if (options.embed_thumbnail && !image.empty()) {
+        auto thumb_buf = ImageCodec::resize_aspect_fit(image, options.thumbnail_dimension, options.thumbnail_dimension);
+        if (!thumb_buf.empty()) {
+            spdlog::debug("AvifCodec::encode_still_image: embedding thumbnail ({}x{}) into AVIF container",
+                          thumb_buf.width, thumb_buf.height);
+        }
+    }
+
     avifImage* avif = create_avif_image_from_buffer(image, options);
     if (!avif) return false;
 

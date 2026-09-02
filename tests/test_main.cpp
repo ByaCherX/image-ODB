@@ -12,6 +12,7 @@ void run_db_tests();
 void run_exif_tests();
 void run_cache_tests();
 void run_pipeline_tests();
+void run_convert_and_cache_tests();
 
 int main() {
     std::cout << "========================================\n";
@@ -41,6 +42,7 @@ int main() {
     execute_test("EXIF Parsing Tests", run_exif_tests);
     execute_test("Cache & Memory Tests", run_cache_tests);
     execute_test("Engine & Pipeline Ingestion Tests", run_pipeline_tests);
+    execute_test("Format Convert, Date Fallback & CacheMode Tests", run_convert_and_cache_tests);
 
     std::cout << "========================================\n";
     if (failures == 0) {
