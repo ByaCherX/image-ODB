@@ -46,29 +46,6 @@ void custom_jpeg_output_message(j_common_ptr cinfo) {
     spdlog::debug("libjpeg message: {}", buffer);
 }
 
-std::vector<uint8_t> read_file_bytes(const std::filesystem::path& file_path) {
-    std::ifstream infile(file_path, std::ios::binary | std::ios::ate);
-    if (!infile.is_open()) {
-        spdlog::warn("Cannot open JPEG file for reading: {}", file_path.string());
-        return {};
-    }
-
-    auto file_size = infile.tellg();
-    if (file_size <= 0) {
-        return {};
-    }
-
-    std::vector<uint8_t> buffer(static_cast<size_t>(file_size));
-    infile.seekg(0, std::ios::beg);
-    infile.read(reinterpret_cast<char*>(buffer.data()), file_size);
-    if (!infile.good() && !infile.eof()) {
-        spdlog::warn("Failed to read all bytes from JPEG file: {}", file_path.string());
-        return {};
-    }
-
-    return buffer;
-}
-
 void apply_jpeg_subsampling(jpeg_compress_struct* cinfo, ChromaSubsampling subsampling) {
     if (cinfo->in_color_space != JCS_RGB) return;
     if (subsampling == ChromaSubsampling::YUV444) {
@@ -222,14 +199,6 @@ RawCompressResult raw_compress_jpeg(const uint8_t* img_data, uint32_t width, uin
 
 } // namespace
 
-ImageBuffer JpegCodec::decode_file(const std::filesystem::path& file_path, const DecodeOptions& options) {
-    auto file_bytes = read_file_bytes(file_path);
-    if (file_bytes.empty()) {
-        return {};
-    }
-    return decode_memory(file_bytes, options);
-}
-
 ImageBuffer JpegCodec::decode_memory(std::span<const uint8_t> data, const DecodeOptions& options) {
     if (data.empty()) return {};
 
@@ -269,36 +238,6 @@ std::vector<uint8_t> JpegCodec::encode_memory(const ImageBuffer& image, const En
     std::vector<uint8_t> result(raw.data, raw.data + raw.size);
     std::free(raw.data);
     return result;
-}
-
-std::vector<uint8_t> JpegCodec::encode_memory(const ImageBuffer& image, int quality) {
-    EncodeOptions options;
-    options.quality = quality;
-    return encode_memory(image, options);
-}
-
-bool JpegCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path, const EncodeOptions& options) {
-    auto data = encode_memory(image, options);
-    if (data.empty()) return false;
-
-    if (auto parent = output_path.parent_path(); !parent.empty() && !std::filesystem::exists(parent)) {
-        std::filesystem::create_directories(parent);
-    }
-
-    std::ofstream out(output_path, std::ios::binary);
-    if (!out.is_open()) {
-        spdlog::error("Cannot create JPEG output file: {}", output_path.string());
-        return false;
-    }
-
-    out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-    return out.good();
-}
-
-bool JpegCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path, int quality) {
-    EncodeOptions options;
-    options.quality = quality;
-    return encode_file(image, output_path, options);
 }
 
 } // namespace image_odb::codec
