@@ -7,6 +7,27 @@
 namespace image_odb::codec {
 
 /**
+ * @brief Canonical list of supported image file extensions for discovery, indexing, and codecs.
+ */
+inline constexpr std::array<std::string_view, 10> SUPPORTED_IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs", ".png", ".webp", ".tif", ".tiff", ".bmp"
+};
+
+/**
+ * @brief Supported image file extensions that currently support direct decoding.
+ */
+inline constexpr std::array<std::string_view, 5> SUPPORTED_DECODE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs"
+};
+
+/**
+ * @brief Supported image container formats for encoding.
+ */
+inline constexpr std::array<ImageFormat, 2> SUPPORTED_ENCODE_FORMATS = {
+    ImageFormat::AVIF, ImageFormat::JPEG
+};
+
+/**
  * @brief Unified interface for decoding and encoding different image formats.
  */
 class ImageCodec {
@@ -32,6 +53,15 @@ public:
                                      const DecodeOptions& options = {});
 
     /**
+     * @brief Encode an in-memory buffer into compressed image bytes with fine-grained options.
+     * @param image Source image buffer.
+     * @param options Fine-grained encoding options.
+     * @return Compressed byte vector.
+     */
+    static std::vector<uint8_t> encode_memory(const ImageBuffer& image,
+                                              const EncodeOptions& options = {});
+
+    /**
      * @brief Encode an in-memory buffer to disk with fine-grained options.
      * @param image Source image buffer.
      * @param output_path Target file path.
@@ -43,17 +73,33 @@ public:
                             const EncodeOptions& options);
 
     /**
-     * @brief Encode an in-memory buffer to disk in the specified format (convenience overload).
-     * @param image Source image buffer.
+     * @brief Encode multiple frames into an AVIF burst sequence file on disk.
+     * @param frames Frames to encode.
      * @param output_path Target file path.
-     * @param format Desired output container format.
-     * @param quality Compression quality (1-100).
+     * @param options Encoding options.
      * @return True if saved successfully.
      */
-    static bool encode_file(const ImageBuffer& image,
-                            const std::filesystem::path& output_path,
-                            ImageFormat format = ImageFormat::AVIF,
-                            int quality = 80);
+    static bool encode_burst_file(const std::vector<ImageBuffer>& frames,
+                                  const std::filesystem::path& output_path,
+                                  const EncodeOptions& options = {});
+
+    /**
+     * @brief Extract a specific frame from an image or container file on disk.
+     * @param file_path File path to image container.
+     * @param frame_index Zero-based frame index.
+     * @param options Decoding options.
+     * @return Decoded ImageBuffer.
+     */
+    static ImageBuffer extract_frame(const std::filesystem::path& file_path,
+                                     uint32_t frame_index = 0,
+                                     const DecodeOptions& options = {});
+
+    /**
+     * @brief Retrieve frame count from an image container file on disk.
+     * @param file_path File path to image container.
+     * @return Total frame count.
+     */
+    static uint32_t get_frame_count(const std::filesystem::path& file_path);
 
     /**
      * @brief Downscale/resize an image to fit within target bounding box preserving aspect ratio.

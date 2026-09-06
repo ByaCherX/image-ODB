@@ -31,6 +31,7 @@
 #include "image_odb/phash.h"
 #include "image_odb/thumbhash.h"
 #include "image_odb/logger.h"
+#include "image_odb/util.h"
 
 #include <functional>
 #include <memory>
@@ -139,5 +140,26 @@ private:
     std::unique_ptr<db::Database> database_;
     std::unique_ptr<cache::CacheManager> cache_manager_;
 };
+
+/**
+ * @brief Get library version string.
+ */
+inline const char* image_odb_version() noexcept {
+    return IMAGE_ODB_VERSION_STRING;
+}
+
+/**
+ * @brief Convenience function to decode an image file from disk.
+ */
+inline ImageBuffer image_odb_decode_file(const std::filesystem::path& file_path, const DecodeOptions& options = {}) {
+    return codec::ImageCodec::decode_file(file_path, options);
+}
+
+/**
+ * @brief Convenience function to encode an image buffer to disk.
+ */
+inline bool image_odb_encode_file(const ImageBuffer& image, const std::filesystem::path& output_path, const EncodeOptions& options = {}) {
+    return codec::ImageCodec::encode_file(image, output_path, options);
+}
 
 } // namespace image_odb

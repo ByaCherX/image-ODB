@@ -62,13 +62,13 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
     std::vector<std::filesystem::path> candidate_files;
     if (options.recursive) {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(scan_root)) {
-            if (entry.is_regular_file() && is_supported_image(entry.path())) {
+            if (entry.is_regular_file() && codec::ImageCodec::detect_format(entry.path()) != ImageFormat::UNKNOWN) {
                 candidate_files.push_back(entry.path());
             }
         }
     } else {
         for (const auto& entry : std::filesystem::directory_iterator(scan_root)) {
-            if (entry.is_regular_file() && is_supported_image(entry.path())) {
+            if (entry.is_regular_file() && codec::ImageCodec::detect_format(entry.path()) != ImageFormat::UNKNOWN) {
                 candidate_files.push_back(entry.path());
             }
         }
@@ -112,14 +112,12 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                 }
             }
 
-            // Extract EXIF
+            // Decode and extract
             Photo p;
-            metadata::ExifReader::read_from_file(original_file_path, p);
             p.file_path = original_file_path;
             p.file_size = std::filesystem::file_size(original_file_path);
             p.hash = initial_hash;
 
-            // Decode and hash
             auto img = codec::ImageCodec::decode_file(original_file_path);
             if (!img.empty()) {
                 if (!img.exif_data.empty()) {
@@ -154,7 +152,7 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
 
                     EncodeOptions enc_opts = options.convert_options;
                     enc_opts.format = ImageFormat::AVIF;
-                    if (codec::AvifCodec::encode_still_image(img, target_avif, enc_opts)) {
+                    if (codec::ImageCodec::encode_file(img, target_avif, enc_opts)) {
                         spdlog::info("Pipeline: Converted '{}' -> '{}'", original_file_path.filename().string(), target_avif.filename().string());
                         if (options.delete_source && target_avif != original_file_path) {
                             std::error_code ec;
@@ -256,7 +254,10 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                 }
             }
 
-            if (frames.size() >= 2 && codec::AvifCodec::encode_burst_sequence(frames, container_path, 80, 6)) {
+            EncodeOptions burst_opts;
+            burst_opts.quality = 80;
+            burst_opts.speed = 6;
+            if (frames.size() >= 2 && codec::ImageCodec::encode_burst_file(frames, container_path, burst_opts)) {
                 Photo container_photo = first_photo;
                 container_photo.file_path = container_path;
                 container_photo.file_size = std::filesystem::file_size(container_path);

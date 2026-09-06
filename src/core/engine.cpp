@@ -50,11 +50,12 @@ std::vector<Photo> Engine::list_photos(const ListOptions& options) {
 bool Engine::extract_frame(const std::filesystem::path& avif_path,
                            uint32_t frame_index,
                            const std::filesystem::path& output_path) {
-    auto frame = codec::AvifCodec::extract_frame(avif_path, frame_index);
+    auto frame = codec::ImageCodec::extract_frame(avif_path, frame_index);
     if (frame.empty()) {
         return false;
     }
-    return codec::ImageCodec::encode_file(frame, output_path);
+    EncodeOptions options;
+    return codec::ImageCodec::encode_file(frame, output_path, options);
 }
 
 std::optional<ImageBuffer> Engine::get_preview(int64_t photo_id) {

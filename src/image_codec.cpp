@@ -7,9 +7,50 @@
 
 namespace image_odb::codec {
 
+namespace {
+
+std::vector<uint8_t> read_file_bytes(const std::filesystem::path& file_path) {
+    std::ifstream infile(file_path, std::ios::binary | std::ios::ate);
+    if (!infile.is_open()) {
+        spdlog::warn("Cannot open file for reading: {}", file_path.string());
+        return {};
+    }
+
+    auto file_size = infile.tellg();
+    if (file_size <= 0) return {};
+
+    std::vector<uint8_t> buffer(static_cast<size_t>(file_size));
+    infile.seekg(0, std::ios::beg);
+    infile.read(reinterpret_cast<char*>(buffer.data()), file_size);
+    if (!infile.good() && !infile.eof()) {
+        spdlog::warn("Failed to read all bytes from file: {}", file_path.string());
+        return {};
+    }
+
+    return buffer;
+}
+
+bool write_file_bytes(const std::filesystem::path& path, const uint8_t* data, size_t size) {
+    if (auto parent = path.parent_path(); !parent.empty() && !std::filesystem::exists(parent)) {
+        std::filesystem::create_directories(parent);
+    }
+
+    std::ofstream out(path, std::ios::binary);
+    if (!out.is_open()) return false;
+    out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
+    return out.good();
+}
+
+} // namespace
+
 ImageFormat ImageCodec::detect_format(const std::filesystem::path& file_path) {
     auto ext = file_path.extension().string();
-    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    std::transform(
+        ext.begin(), 
+        ext.end(), 
+        ext.begin(), 
+        [](unsigned char c){ return static_cast<char>(std::tolower(c)); }
+    );
     if (ext == ".jpg" || ext == ".jpeg" || ext == ".jfif") return ImageFormat::JPEG;
     if (ext == ".avif" || ext == ".avifs") return ImageFormat::AVIF;
     if (ext == ".png") return ImageFormat::PNG;
@@ -20,45 +61,62 @@ ImageFormat ImageCodec::detect_format(const std::filesystem::path& file_path) {
 }
 
 ImageFormat ImageCodec::detect_format(std::span<const uint8_t> data) {
-    if (data.size() >= 2 && data[0] == 0xFF && data[1] == 0xD8) return ImageFormat::JPEG;
-    if (data.size() >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') return ImageFormat::PNG;
-    if (data.size() >= 12 && data[0] == 'R' && data[1] == 'I' && data[2] == 'F' && data[3] == 'F' &&
-        data[8] == 'W' && data[9] == 'E' && data[10] == 'B' && data[11] == 'P') return ImageFormat::WEBP;
-    if (data.size() >= 12 && data[4] == 'f' && data[5] == 't' && data[6] == 'y' && data[7] == 'p') {
+    using namespace std::string_view_literals;
+    using util::starts_with;
+
+    if (starts_with(data, "\xFF\xD8")) return ImageFormat::JPEG;
+    if (starts_with(data, "\x89PNG")) return ImageFormat::PNG;
+    if (starts_with(data, "BM")) return ImageFormat::BMP;
+    if (starts_with(data, "II\x2A\x00"sv) || starts_with(data, "MM\x00\x2A"sv)) return ImageFormat::TIFF;
+    if (starts_with(data, "RIFF") && data.size() >= 12 && starts_with(data.subspan(8), "WEBP")) {
+        return ImageFormat::WEBP;
+    }
+    if (data.size() >= 12 && starts_with(data.subspan(4), "ftyp")) {
         return ImageFormat::AVIF;
     }
     return ImageFormat::UNKNOWN;
 }
 
 ImageBuffer ImageCodec::decode_file(const std::filesystem::path& file_path, const DecodeOptions& options) {
-    auto fmt = detect_format(file_path);
-    spdlog::debug("ImageCodec::decode_file: decoding '{}' (format={})", file_path.string(), static_cast<int>(fmt));
+    auto file_bytes = read_file_bytes(file_path);
+    if (file_bytes.empty()) {
+        return {};
+    }
+    auto ext = file_path.extension().string();
+    return decode_memory(file_bytes, ext, options);
+}
+
+ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::string& hint_format, const DecodeOptions& options) {
+    if (data.empty()) return {};
+
+    ImageFormat fmt = detect_format(data);
+    if (fmt == ImageFormat::UNKNOWN && !hint_format.empty()) {
+        std::string h = hint_format;
+        std::transform(h.begin(), h.end(), h.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+        if (h == ".jpg" || h == ".jpeg" || h == ".jfif" || h == "jpg" || h == "jpeg") fmt = ImageFormat::JPEG;
+        else if (h == ".avif" || h == ".avifs" || h == "avif") fmt = ImageFormat::AVIF;
+    }
 
     switch (fmt) {
         case ImageFormat::JPEG:
-            return JpegCodec::decode_file(file_path, options);
+            return JpegCodec::decode_memory(data, options);
         case ImageFormat::AVIF:
-            return AvifCodec::extract_frame(file_path, 0, options);
-        case ImageFormat::PNG:
-        case ImageFormat::WEBP:
-        case ImageFormat::TIFF:
-        case ImageFormat::BMP:
-            spdlog::warn("Decoding support for {} will be available in future codec extensions: {}",
-                         file_path.extension().string(), file_path.string());
-            return {};
+            return AvifCodec::decode_memory(data, options);
         default:
-            spdlog::warn("Unsupported image format for decoding: {}", file_path.string());
+            spdlog::warn("Unsupported image format for in-memory decoding");
             return {};
     }
 }
 
-ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::string& hint_format, const DecodeOptions& options) {
-    (void)hint_format;
-    auto fmt = detect_format(data);
-    if (fmt == ImageFormat::JPEG) {
-        return JpegCodec::decode_memory(data, options);
+std::vector<uint8_t> ImageCodec::encode_memory(const ImageBuffer& image, const EncodeOptions& options) {
+    if (image.empty()) return {};
+
+    if (options.format == ImageFormat::AVIF) {
+        return AvifCodec::encode_memory(image, options);
+    } else if (options.format == ImageFormat::JPEG) {
+        return JpegCodec::encode_memory(image, options);
     }
-    return {};
+    return JpegCodec::encode_memory(image, options);
 }
 
 bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path, const EncodeOptions& options) {
@@ -67,22 +125,37 @@ bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::pa
     spdlog::debug("ImageCodec::encode_file: encoding to '{}' (format={}, quality={})",
                   output_path.string(), options.format == ImageFormat::AVIF ? "AVIF" : "JPEG", options.quality);
 
-    if (options.format == ImageFormat::AVIF) {
-        return AvifCodec::encode_still_image(image, output_path, options);
-    } else if (options.format == ImageFormat::JPEG) {
-        return JpegCodec::encode_file(image, output_path, options);
-    }
-    
-    // Default fallback to JPEG
-    return JpegCodec::encode_file(image, output_path, options);
+    auto bytes = encode_memory(image, options);
+    if (bytes.empty()) return false;
+
+    return write_file_bytes(output_path, bytes.data(), bytes.size());
 }
 
-bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path,
-                             ImageFormat format, int quality) {
-    EncodeOptions options;
-    options.format = format;
-    options.quality = quality;
-    return encode_file(image, output_path, options);
+bool ImageCodec::encode_burst_file(const std::vector<ImageBuffer>& frames,
+                                  const std::filesystem::path& output_path,
+                                  const EncodeOptions& options) {
+    if (frames.empty()) return false;
+
+    auto bytes = AvifCodec::encode_burst_sequence(frames, options);
+    if (bytes.empty()) return false;
+
+    return write_file_bytes(output_path, bytes.data(), bytes.size());
+}
+
+ImageBuffer ImageCodec::extract_frame(const std::filesystem::path& file_path,
+                                     uint32_t frame_index,
+                                     const DecodeOptions& options) {
+    auto file_bytes = read_file_bytes(file_path);
+    if (file_bytes.empty()) return {};
+
+    return AvifCodec::extract_frame(file_bytes, frame_index, options);
+}
+
+uint32_t ImageCodec::get_frame_count(const std::filesystem::path& file_path) {
+    auto file_bytes = read_file_bytes(file_path);
+    if (file_bytes.empty()) return 0;
+
+    return AvifCodec::get_frame_count(file_bytes);
 }
 
 ImageBuffer ImageCodec::resize_aspect_fit(const ImageBuffer& src, uint32_t max_width, uint32_t max_height) {
