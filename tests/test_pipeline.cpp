@@ -87,16 +87,17 @@ void run_pipeline_tests() {
     // Create 2 single distinct photos (checkerboard vs circle)
     auto single1 = make_checkerboard_pattern(100, 100, 10);
     auto single2 = make_circle_pattern(100, 100, 30);
-    codec::JpegCodec::encode_file(single1, photos_dir / "single_01.jpg", 90);
-    codec::JpegCodec::encode_file(single2, photos_dir / "single_02.jpg", 90);
+    EncodeOptions jpg_opts{.format = ImageFormat::JPEG, .quality = 90};
+    codec::ImageCodec::encode_file(single1, photos_dir / "single_01.jpg", jpg_opts);
+    codec::ImageCodec::encode_file(single2, photos_dir / "single_02.jpg", jpg_opts);
 
     // Create 3 burst photos (horizontal stripe patterns with minor offset)
     auto b1 = make_burst_pattern(100, 100, 0);
     auto b2 = make_burst_pattern(100, 100, 1);
     auto b3 = make_burst_pattern(100, 100, 2);
-    codec::JpegCodec::encode_file(b1, photos_dir / "burst_01.jpg", 90);
-    codec::JpegCodec::encode_file(b2, photos_dir / "burst_02.jpg", 90);
-    codec::JpegCodec::encode_file(b3, photos_dir / "burst_03.jpg", 90);
+    codec::ImageCodec::encode_file(b1, photos_dir / "burst_01.jpg", jpg_opts);
+    codec::ImageCodec::encode_file(b2, photos_dir / "burst_02.jpg", jpg_opts);
+    codec::ImageCodec::encode_file(b3, photos_dir / "burst_03.jpg", jpg_opts);
 
     {
         Engine engine(test_workspace);

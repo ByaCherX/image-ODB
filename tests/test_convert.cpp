@@ -41,32 +41,18 @@ void run_convert_and_cache_tests() {
     // 1. Test Format Detection and Centralized Extension Helpers
     assert(codec::ImageCodec::detect_format("photo.jpg") == ImageFormat::JPEG);
     assert(codec::ImageCodec::detect_format("photo.jpeg") == ImageFormat::JPEG);
+    assert(codec::ImageCodec::detect_format("photo.jfif") == ImageFormat::JPEG);
     assert(codec::ImageCodec::detect_format("photo.avif") == ImageFormat::AVIF);
+    assert(codec::ImageCodec::detect_format("photo.avifs") == ImageFormat::AVIF);
     assert(codec::ImageCodec::detect_format("photo.png") == ImageFormat::PNG);
     assert(codec::ImageCodec::detect_format("photo.webp") == ImageFormat::WEBP);
-    assert(is_decoding_supported_image("photo.jpg"));
-    assert(is_decoding_supported_image("photo.avif"));
-    assert(!is_decoding_supported_image("photo.png"));
-    assert(is_decoding_supported_extension(".jpg"));
-    assert(is_decoding_supported_extension(".AVIF"));
-    assert(!is_decoding_supported_extension(".webp"));
-    assert(is_supported_image("photo.jpg"));
-    assert(is_supported_image("photo.AVIF"));
-    assert(is_supported_image("photo.webp"));
-    assert(is_supported_image("photo.jfif"));
-    assert(is_supported_image("photo.bmp"));
-    assert(!is_supported_image("document.txt"));
-    assert(!is_supported_image("document.pdf"));
-    assert(is_supported_extension(".JPG"));
-    assert(is_supported_extension(".avif"));
-    assert(!is_supported_extension(".exe"));
-    assert(is_decoding_supported(ImageFormat::JPEG));
-    assert(is_decoding_supported(ImageFormat::AVIF));
-    assert(!is_decoding_supported(ImageFormat::PNG));
-    assert(is_encoding_supported(ImageFormat::AVIF));
-    assert(is_encoding_supported(ImageFormat::JPEG));
-    assert(!is_encoding_supported(ImageFormat::WEBP));
-    assert(SUPPORTED_IMAGE_EXTENSIONS.size() == 10);
+    assert(codec::ImageCodec::detect_format("photo.bmp") == ImageFormat::BMP);
+    assert(codec::ImageCodec::detect_format("photo.tif") == ImageFormat::TIFF);
+    assert(codec::ImageCodec::detect_format("photo.tiff") == ImageFormat::TIFF);
+    assert(codec::ImageCodec::detect_format("document.txt") == ImageFormat::UNKNOWN);
+    assert(codec::ImageCodec::detect_format("document.pdf") == ImageFormat::UNKNOWN);
+    assert(codec::ImageCodec::detect_format("program.exe") == ImageFormat::UNKNOWN);
+    assert(codec::SUPPORTED_IMAGE_EXTENSIONS.size() == 10);
 
     // 2. Test Filename Date Fallback Parsing
     auto dt1 = metadata::ExifReader::parse_date_from_filename("IMG_20240815_134520.jpg");
@@ -114,7 +100,8 @@ void run_convert_and_cache_tests() {
     // 4. Test Single File Convert (JPEG -> AVIF with embed_thumbnail, and AVIF -> JPEG)
     auto src_img = make_test_image(120, 120);
     auto raw_jpg_path = test_dir / "IMG_20240815_134520.jpg";
-    codec::JpegCodec::encode_file(src_img, raw_jpg_path, 90);
+    EncodeOptions jpg_opts{.format = ImageFormat::JPEG, .quality = 90};
+    codec::ImageCodec::encode_file(src_img, raw_jpg_path, jpg_opts);
 
     {
         Engine engine(test_dir);
@@ -128,7 +115,7 @@ void run_convert_and_cache_tests() {
         enc_avif.embed_thumbnail = true;
         enc_avif.thumbnail_dimension = 64;
 
-        bool conv_ok = engine.convert_file(raw_jpg_path, out_avif_path, enc_avif);
+        [[maybe_unused]] bool conv_ok = engine.convert_file(raw_jpg_path, out_avif_path, enc_avif);
         assert(conv_ok);
         assert(std::filesystem::exists(out_avif_path) && std::filesystem::file_size(out_avif_path) > 0);
 
@@ -137,7 +124,7 @@ void run_convert_and_cache_tests() {
         EncodeOptions enc_jpg;
         enc_jpg.format = ImageFormat::JPEG;
         enc_jpg.quality = 90;
-        bool back_ok = engine.convert_file(out_avif_path, back_jpg_path, enc_jpg);
+        [[maybe_unused]] bool back_ok = engine.convert_file(out_avif_path, back_jpg_path, enc_jpg);
         assert(back_ok);
         assert(std::filesystem::exists(back_jpg_path) && std::filesystem::file_size(back_jpg_path) > 0);
 
@@ -146,8 +133,8 @@ void run_convert_and_cache_tests() {
         std::filesystem::create_directories(scan_input_dir);
         auto photo1_jpg = scan_input_dir / "IMG_20240815_134520.jpg";
         auto photo2_jpg = scan_input_dir / "IMG_20240816_140000.jpg";
-        codec::JpegCodec::encode_file(src_img, photo1_jpg, 90);
-        codec::JpegCodec::encode_file(src_img, photo2_jpg, 90);
+        codec::ImageCodec::encode_file(src_img, photo1_jpg, jpg_opts);
+        codec::ImageCodec::encode_file(src_img, photo2_jpg, jpg_opts);
 
         ScanOptions scan_opts;
         scan_opts.convert_to_avif = true;
@@ -157,7 +144,7 @@ void run_convert_and_cache_tests() {
         scan_opts.delete_source = true;
         scan_opts.cache_mode = CacheMode::ALL;
 
-        uint64_t ingested = engine.scan_directory(scan_input_dir, scan_opts, nullptr);
+        [[maybe_unused]] uint64_t ingested = engine.scan_directory(scan_input_dir, scan_opts, nullptr);
         assert(ingested == 2);
 
         // Verify source was replaced by converted .avif files
@@ -169,7 +156,7 @@ void run_convert_and_cache_tests() {
         ListOptions list_opts;
         auto photos = engine.list_photos(list_opts);
         assert(photos.size() == 2);
-        for (const auto& p : photos) {
+        for ([[maybe_unused]] const auto& p : photos) {
             assert(p.mime_type == "image/avif");
             assert(p.file_path.extension() == ".avif");
             assert(p.capture_date.has_value()); // Date parsed from filename fallback!
