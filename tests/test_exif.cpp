@@ -1,4 +1,4 @@
-﻿#include "image_odb/exif_reader.h"
+#include "image_odb/exif_reader.h"
 #include <cassert>
 #include <stdexcept>
 #include <iostream>
@@ -24,4 +24,13 @@ void run_exif_tests() {
     if (ExifReader::parse_exif_date(invalid_date).has_value()) {
         throw std::runtime_error("Invalid date string should have returned nullopt");
     }
+
+    // Test 4: exif_convert with empty buffer
+    std::vector<uint8_t> empty_buf;
+    image_odb::Photo photo;
+    bool ok_empty = ExifReader::exif_convert(empty_buf, photo);
+    if (ok_empty) {
+        throw std::runtime_error("exif_convert on empty buffer should return false");
+    }
 }
+

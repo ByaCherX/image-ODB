@@ -122,6 +122,19 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
             // Decode and hash
             auto img = codec::ImageCodec::decode_file(original_file_path);
             if (!img.empty()) {
+                if (!img.exif_data.empty()) {
+                    metadata::ExifReader::exif_convert(img.exif_data, p);
+                }
+                if (!p.capture_date.has_value()) {
+                    if (auto fn_date = metadata::ExifReader::parse_date_from_filename(original_file_path); fn_date.has_value()) {
+                        p.capture_date = fn_date;
+                        p.exif_json["date_source"] = "filename";
+                    } else if (auto fs_date = metadata::ExifReader::get_file_modification_date(original_file_path); fs_date.has_value()) {
+                        p.capture_date = fs_date;
+                        p.exif_json["date_source"] = "filesystem";
+                    }
+                }
+
                 p.dimensions.width = img.width;
                 p.dimensions.height = img.height;
                 p.phash = hash::PHash::compute(img);

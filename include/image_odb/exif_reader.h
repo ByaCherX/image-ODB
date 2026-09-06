@@ -12,20 +12,12 @@ namespace image_odb::metadata {
 class ExifReader {
 public:
     /**
-     * @brief Extract metadata from an image file on disk.
-     * @param file_path Path to the image file (JPEG, AVIF, etc.).
-     * @param photo Output photo object to populate with extracted metadata.
-     * @return True if metadata was successfully parsed, false otherwise.
+     * @brief Convert EXIF byte data into Photo metadata structure.
+     * @param data Byte slice containing image data (JPEG) or EXIF segment (AVIF/APP1).
+     * @param photo Photo object to populate.
+     * @return True if conversion succeeded.
      */
-    static bool read_from_file(const std::filesystem::path& file_path, Photo& photo);
-
-    /**
-     * @brief Extract metadata from an in-memory byte buffer.
-     * @param buffer Byte buffer containing image data with EXIF header.
-     * @param photo Output photo object to populate with extracted metadata.
-     * @return True if metadata was successfully parsed, false otherwise.
-     */
-    static bool read_from_memory(std::span<const uint8_t> buffer, Photo& photo);
+    static bool exif_convert(std::span<const uint8_t> data, Photo& photo);
 
     /**
      * @brief Parse standard ISO8601 or EXIF format datetime string ("YYYY:MM:DD HH:MM:SS").

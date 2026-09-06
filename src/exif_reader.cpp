@@ -1,4 +1,5 @@
 #include "image_odb/exif_reader.h"
+#include "image_odb/util.h"
 #include <tinyexif.h>
 #include <fstream>
 #include <iomanip>
@@ -8,16 +9,39 @@
 
 namespace image_odb::metadata {
 
-bool ExifReader::read_from_file(const std::filesystem::path& file_path, Photo& photo) {
-    std::ifstream stream(file_path, std::ios::binary);
-    if (!stream.is_open()) {
-        spdlog::warn("Cannot open file for EXIF reading: {}", file_path.string());
+bool ExifReader::exif_convert(std::span<const uint8_t> data, Photo& photo) {
+    if (data.empty()) {
         return false;
     }
 
-    TinyEXIF::EXIFInfo info(stream);
+    using namespace std::string_view_literals;
+    using util::starts_with;
+
+    TinyEXIF::EXIFInfo info;
+    int parse_res = -1;
+
+    if (starts_with(data, "\xFF\xD8")) {
+        // Full JPEG stream / file bytes
+        parse_res = info.parseFrom(data.data(), static_cast<unsigned>(data.size()));
+    } else if (starts_with(data, "Exif\0\0"sv)) {  
+        // EXIF segment starting with "Exif\0\0"
+        parse_res = info.parseFromEXIFSegment(data.data(), static_cast<unsigned>(data.size()));
+    } else if (data.size() >= 4 && (starts_with(data, "II") || starts_with(data, "MM"))) {
+        // TIFF header without Exif\0\0 prefix (e.g. from some AVIF containers)
+        std::vector<uint8_t> prefixed;
+        prefixed.reserve(6 + data.size());
+        prefixed.insert(prefixed.end(), {'E', 'x', 'i', 'f', 0, 0});
+        prefixed.insert(prefixed.end(), data.begin(), data.end());
+        parse_res = info.parseFromEXIFSegment(prefixed.data(), static_cast<unsigned>(prefixed.size()));
+    } else {
+        parse_res = info.parseFromEXIFSegment(data.data(), static_cast<unsigned>(data.size()));
+        if (parse_res != 0) {
+            parse_res = info.parseFrom(data.data(), static_cast<unsigned>(data.size()));
+        }
+    }
+
     if (!info.Fields) {
-        spdlog::debug("No EXIF metadata found in: {}", file_path.string());
+        spdlog::debug("No EXIF metadata fields parsed from memory buffer (res={})", parse_res);
         return false;
     }
 
@@ -84,32 +108,8 @@ bool ExifReader::read_from_file(const std::filesystem::path& file_path, Photo& p
     extra["software"] = info.Software;
     extra["copyright"] = info.Copyright;
     extra["description"] = info.ImageDescription;
-
-    // Date fallback if EXIF timestamp missing or unparseable
-    if (!photo.capture_date.has_value()) {
-        if (auto fn_date = parse_date_from_filename(file_path); fn_date.has_value()) {
-            photo.capture_date = fn_date;
-            extra["date_source"] = "filename";
-        } else if (auto fs_date = get_file_modification_date(file_path); fs_date.has_value()) {
-            photo.capture_date = fs_date;
-            extra["date_source"] = "filesystem";
-        }
-    }
-
     photo.exif_json = extra;
 
-    return true;
-}
-
-bool ExifReader::read_from_memory(std::span<const uint8_t> buffer, Photo& photo) {
-    if (buffer.empty()) return false;
-    TinyEXIF::EXIFInfo info(buffer.data(), static_cast<unsigned>(buffer.size()));
-    if (!info.Fields) return false;
-
-    photo.camera.make = info.Make;
-    photo.camera.model = info.Model;
-    if (info.ImageWidth > 0) photo.dimensions.width = info.ImageWidth;
-    if (info.ImageHeight > 0) photo.dimensions.height = info.ImageHeight;
     return true;
 }
 
