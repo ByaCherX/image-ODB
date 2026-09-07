@@ -10,7 +10,6 @@ namespace image_odb::codec {
 
 namespace {
 
-static constexpr std::string_view signature = "image-odb";
 static constexpr std::string_view APP_XMP_METADATA = R"(<x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
   <rdf:Description
@@ -21,18 +20,7 @@ static constexpr std::string_view APP_XMP_METADATA = R"(<x:xmpmeta xmlns:x="adob
  </rdf:RDF>
 </x:xmpmeta>)";
 
-bool write_file_bytes(const std::filesystem::path& path, const uint8_t* data, size_t size) {
-    if (auto parent = path.parent_path(); !parent.empty() && !std::filesystem::exists(parent)) {
-        std::filesystem::create_directories(parent);
-    }
-
-    std::ofstream out(path, std::ios::binary);
-    if (!out.is_open()) return false;
-    out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
-    return out.good();
-}
-
-avifImage* create_avif_image_from_buffer(const ImageBuffer& img, const EncodeOptions& options) {
+avifImage* avifFromBuffer(const ImageBuffer& img, const EncodeOptions& options) {
     if (img.empty() || img.width == 0 || img.height == 0) return nullptr;
 
     avifPixelFormat yuv_format = AVIF_PIXEL_FORMAT_YUV420;
@@ -86,22 +74,34 @@ avifImage* create_avif_image_from_buffer(const ImageBuffer& img, const EncodeOpt
                   img.format == PixelFormat::RGBA16 || 
                   img.format == PixelFormat::RGBA_F16)
                  ? AVIF_RGB_FORMAT_RGBA : AVIF_RGB_FORMAT_RGB;
+
     rgb.depth = (img.bit_depth() > 8) ? 16 : 8;
     rgb.pixels = const_cast<uint8_t*>(img.data.data());
     rgb.rowBytes = img.width * img.channels * (rgb.depth / 8);
 
     /**< XMP Metadata */
-    avifImageSetMetadataXMP(
+    avifResult res = avifImageSetMetadataXMP(
         avif, 
         reinterpret_cast<const uint8_t*>(APP_XMP_METADATA.data()), 
         APP_XMP_METADATA.size()
     );
+    if (res != AVIF_RESULT_OK) {
+        spdlog::warn("avifImageMetadataXMP failed: {}", avifResultToString(res));
+    }
 
-    avifResult res = avifImageRGBToYUV(avif, &rgb);
+    res = avifImageRGBToYUV(avif, &rgb);
     if (res != AVIF_RESULT_OK) {
         spdlog::error("avifImageRGBToYUV failed: {}", avifResultToString(res));
         avifImageDestroy(avif);
         return nullptr;
+    }
+
+    // Attach EXIF metadata if present in ImageBuffer
+    if (!img.exif_data.empty()) {
+        avifResult exif_res = avifImageSetMetadataExif(avif, img.exif_data.data(), img.exif_data.size());
+        if (exif_res != AVIF_RESULT_OK) {
+            spdlog::warn("avifImageSetMetadataExif notice: {}", avifResultToString(exif_res));
+        }
     }
 
     return avif;
@@ -109,24 +109,16 @@ avifImage* create_avif_image_from_buffer(const ImageBuffer& img, const EncodeOpt
 
 } // namespace
 
-bool AvifCodec::encode_still_image(const ImageBuffer& image,
-                                   const std::filesystem::path& output_path,
-                                   const EncodeOptions& options) {
-    if (options.embed_thumbnail && !image.empty()) {
-        auto thumb_buf = ImageCodec::resize_aspect_fit(image, options.thumbnail_dimension, options.thumbnail_dimension);
-        if (!thumb_buf.empty()) {
-            spdlog::debug("AvifCodec::encode_still_image: embedding thumbnail ({}x{}) into AVIF container",
-                          thumb_buf.width, thumb_buf.height);
-        }
-    }
+std::vector<uint8_t> AvifCodec::encode_memory(const ImageBuffer& image, const EncodeOptions& options) {
+    if (image.empty()) return {};
 
-    avifImage* avif = create_avif_image_from_buffer(image, options);
-    if (!avif) return false;
+    avifImage* avif = avifFromBuffer(image, options);
+    if (!avif) return {};
 
     avifEncoder* encoder = avifEncoderCreate();
     if (!encoder) {
         avifImageDestroy(avif);
-        return false;
+        return {};
     }
 
     if (options.lossless) {
@@ -138,12 +130,21 @@ bool AvifCodec::encode_still_image(const ImageBuffer& image,
     }
     encoder->speed = std::clamp(options.speed, 0, 10);
 
+    //---------------------------------------------------------------------------------------+
+    // The encoder to be used for the AVIF image is determined here. AOM is used by default; |
+    // use AOM for the most balanced and compatible encoding. While other encoders may work, |
+    // they can result in corrupted image areas, requiring additional work and testing.      |
+    //                                                                                       |
+    // If you wish to select a different encoder, you will need to change this manually.     |
+    //---------------------------------------------------------------------------------------+
+    encoder->codecChoice = AVIF_CODEC_CHOICE_AOM;
+
     avifRWData raw = AVIF_DATA_EMPTY;
     avifResult res = avifEncoderWrite(encoder, avif, &raw);
 
-    bool success = false;
-    if (res == AVIF_RESULT_OK) {
-        success = write_file_bytes(output_path, raw.data, raw.size);
+    std::vector<uint8_t> out;
+    if (res == AVIF_RESULT_OK && raw.data && raw.size > 0) {
+        out.assign(raw.data, raw.data + raw.size);
     } else {
         spdlog::error("avifEncoderWrite failed: {}", avifResultToString(res));
     }
@@ -152,28 +153,18 @@ bool AvifCodec::encode_still_image(const ImageBuffer& image,
     avifEncoderDestroy(encoder);
     avifImageDestroy(avif);
 
-    return success;
+    return out;
 }
 
-bool AvifCodec::encode_still_image(const ImageBuffer& image,
-                                   const std::filesystem::path& output_path,
-                                   int quality, int speed) {
-    EncodeOptions options;
-    options.quality = quality;
-    options.speed = speed;
-    return encode_still_image(image, output_path, options);
-}
-
-bool AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
-                                      const std::filesystem::path& output_path,
-                                      const EncodeOptions& options) {
-    if (frames.empty()) return false;
+std::vector<uint8_t> AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
+                                                      const EncodeOptions& options) {
+    if (frames.empty()) return {};
     if (frames.size() == 1) {
-        return encode_still_image(frames[0], output_path, options);
+        return encode_memory(frames[0], options);
     }
 
     avifEncoder* encoder = avifEncoderCreate();
-    if (!encoder) return false;
+    if (!encoder) return {};
 
     if (options.lossless) {
         encoder->quality = AVIF_QUALITY_LOSSLESS;
@@ -187,7 +178,7 @@ bool AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
 
     bool all_ok = true;
     for (size_t i = 0; i < frames.size(); ++i) {
-        avifImage* avif = create_avif_image_from_buffer(frames[i], options);
+        avifImage* avif = avifFromBuffer(frames[i], options);
         if (!avif) {
             all_ok = false;
             break;
@@ -205,12 +196,12 @@ bool AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
         }
     }
 
-    bool success = false;
+    std::vector<uint8_t> out;
     if (all_ok) {
         avifRWData raw = AVIF_DATA_EMPTY;
         avifResult res = avifEncoderFinish(encoder, &raw);
-        if (res == AVIF_RESULT_OK) {
-            success = write_file_bytes(output_path, raw.data, raw.size);
+        if (res == AVIF_RESULT_OK && raw.data && raw.size > 0) {
+            out.assign(raw.data, raw.data + raw.size);
         } else {
             spdlog::error("avifEncoderFinish failed: {}", avifResultToString(res));
         }
@@ -218,88 +209,36 @@ bool AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
     }
 
     avifEncoderDestroy(encoder);
-    return success;
+    return out;
 }
 
-bool AvifCodec::encode_burst_sequence(const std::vector<ImageBuffer>& frames,
-                                      const std::filesystem::path& output_path,
-                                      int quality, int speed) {
-    EncodeOptions options;
-    options.quality = quality;
-    options.speed = speed;
-    return encode_burst_sequence(frames, output_path, options);
+ImageBuffer AvifCodec::decode_memory(std::span<const uint8_t> data, const DecodeOptions& options) {
+    return extract_frame(data, 0, options);
 }
 
-bool AvifCodec::encode_burst_sequence(const std::vector<std::filesystem::path>& input_files,
-                                      const std::filesystem::path& output_path,
-                                      const EncodeOptions& options) {
-    if (input_files.empty()) return false;
-
-    std::vector<ImageBuffer> frames;
-    frames.reserve(input_files.size());
-
-    for (const auto& path : input_files) {
-        auto img = ImageCodec::decode_file(path);
-        if (img.empty()) {
-            spdlog::error("Failed to decode burst frame input file: {}", path.string());
-            return false;
-        }
-        frames.push_back(std::move(img));
-    }
-
-    return encode_burst_sequence(frames, output_path, options);
-}
-
-bool AvifCodec::encode_burst_sequence(const std::vector<std::filesystem::path>& input_files,
-                                      const std::filesystem::path& output_path,
-                                      int quality, int speed) {
-    EncodeOptions options;
-    options.quality = quality;
-    options.speed = speed;
-    return encode_burst_sequence(input_files, output_path, options);
-}
-
-ImageBuffer AvifCodec::extract_frame(const std::filesystem::path& avif_path,
+ImageBuffer AvifCodec::extract_frame(std::span<const uint8_t> data,
                                      uint32_t frame_index,
                                      const DecodeOptions& options) {
     ImageBuffer buffer;
+    if (data.empty()) return buffer;
+
     avifDecoder* decoder = avifDecoderCreate();
     if (!decoder) return buffer;
-
-    avifResult result = avifDecoderSetIOFile(decoder, avif_path.string().c_str());
-    if (result != AVIF_RESULT_OK) {
-        avifDecoderDestroy(decoder);
-        return buffer;
+    
+/*helper*/
+#define avifResultError(result, spdlog_message)                                \
+    if ((result) != AVIF_RESULT_OK) {                                          \
+        spdlog::error("{}: {}", (spdlog_message), avifResultToString(result)); \
+        avifDecoderDestroy(decoder);                                           \
+        return buffer;                                                         \
     }
+    avifResult result;
+
+    result = avifDecoderSetIOMemory(decoder, data.data(), data.size());
+    avifResultError(result, "avifDecoderSetIOMemory failed");
 
     result = avifDecoderParse(decoder);
-    if (result != AVIF_RESULT_OK) {
-        avifDecoderDestroy(decoder);
-        return buffer;
-    }
-
-#ifdef IMAGE_SEQUENTAL_DETECT
-    bool is_single_image = (decoder->imageCount == 1);
-    bool is_sequence = (decoder->imageSequenceTrackPresent == AVIF_TRUE);
-    if (is_single_image && !is_sequence) {
-        // only one image is still_image
-    } else {
-        // multi-frame / burst sequence / animation
-    }
-#endif
-
-    /**< is_encoded_by_image_odb */
-    bool matched = false;
-    if (decoder->image && decoder->image->xmp.size > 0 && decoder->image->xmp.data != nullptr) {
-        std::string_view xmp_str(
-            reinterpret_cast<const char*>(decoder->image->xmp.data),
-            decoder->image->xmp.size
-        );
-        // check signature
-        if (xmp_str.find(signature) != std::string_view::npos) {
-            matched = true;
-        }
-    }
+    avifResultError(result, "avifDecoderParse failed");
 
     if (frame_index >= static_cast<uint32_t>(decoder->imageCount)) {
         spdlog::error("Requested frame index {} exceeds total image count {}", frame_index, decoder->imageCount);
@@ -308,11 +247,7 @@ ImageBuffer AvifCodec::extract_frame(const std::filesystem::path& avif_path,
     }
 
     result = avifDecoderNthImage(decoder, frame_index);
-    if (result != AVIF_RESULT_OK) {
-        spdlog::error("avifDecoderNthImage failed: {}", avifResultToString(result));
-        avifDecoderDestroy(decoder);
-        return buffer;
-    }
+    avifResultError(result, "avifDecoderNthImage failed");
 
     bool want_alpha = (decoder->image->alphaPlane != nullptr) ||
                       (options.target_format == PixelFormat::RGBA8 || options.target_format == PixelFormat::RGBA16 || options.target_format == PixelFormat::RGBA_F16);
@@ -323,54 +258,63 @@ ImageBuffer AvifCodec::extract_frame(const std::filesystem::path& avif_path,
     avifRGBImageSetDefaults(&rgb, decoder->image);
     rgb.format = want_alpha ? AVIF_RGB_FORMAT_RGBA : AVIF_RGB_FORMAT_RGB;
     rgb.depth = is_16bit ? 16 : 8;
-    if (avifRGBImageAllocatePixels(&rgb) != AVIF_RESULT_OK) {
-        spdlog::error("avifRGBImageAllocate failed, but countinue anyway");
-    }
+    result = avifRGBImageAllocatePixels(&rgb);
+    avifResultError(result, "avifRGBImageAllocatePixels failed");
 
     result = avifImageYUVToRGB(decoder->image, &rgb);
-    if (result == AVIF_RESULT_OK) {
-        buffer.width = rgb.width;
-        buffer.height = rgb.height;
-        buffer.channels = want_alpha ? 4 : 3;
-        if (is_16bit) {
-            buffer.format = want_alpha ? PixelFormat::RGBA16 : PixelFormat::RGB16;
-        } else {
-            buffer.format = want_alpha ? PixelFormat::RGBA8 : PixelFormat::RGB8;
-        }
+    if (result != AVIF_RESULT_OK) {
+        avifRGBImageFreePixels(&rgb);
+    }
+    avifResultError(result, "avifImageYUVToRGB failed");
 
-        // Extract color metadata
-        switch (decoder->image->colorPrimaries) {
-            case AVIF_COLOR_PRIMARIES_BT709: buffer.color_profile.primaries = ColorPrimaries::BT709_sRGB; break;
-            case AVIF_COLOR_PRIMARIES_BT2020: buffer.color_profile.primaries = ColorPrimaries::BT2020; break;
-            case AVIF_COLOR_PRIMARIES_SMPTE432:
-            case AVIF_COLOR_PRIMARIES_SMPTE431: buffer.color_profile.primaries = ColorPrimaries::DCI_P3; break;
-            default: buffer.color_profile.primaries = ColorPrimaries::Unspecified; break;
-        }
-
-        switch (decoder->image->transferCharacteristics) {
-            case AVIF_TRANSFER_CHARACTERISTICS_SRGB: buffer.color_profile.transfer = TransferCharacteristics::sRGB; break;
-            case AVIF_TRANSFER_CHARACTERISTICS_LINEAR: buffer.color_profile.transfer = TransferCharacteristics::Linear; break;
-            case AVIF_TRANSFER_CHARACTERISTICS_SMPTE2084: buffer.color_profile.transfer = TransferCharacteristics::PQ; break;
-            case AVIF_TRANSFER_CHARACTERISTICS_HLG: buffer.color_profile.transfer = TransferCharacteristics::HLG; break;
-            default: buffer.color_profile.transfer = TransferCharacteristics::sRGB; break;
-        }
-
-        size_t byte_count = static_cast<size_t>(rgb.width) * rgb.height * buffer.channels * (rgb.depth / 8);
-        buffer.data.assign(rgb.pixels, rgb.pixels + byte_count);
+    buffer.width = rgb.width;
+    buffer.height = rgb.height;
+    buffer.channels = want_alpha ? 4 : 3;
+    if (is_16bit) {
+        buffer.format = want_alpha ? PixelFormat::RGBA16 : PixelFormat::RGB16;
     } else {
-        spdlog::error("avifImageYUVToRGB failed: {}", avifResultToString(result));
+        buffer.format = want_alpha ? PixelFormat::RGBA8 : PixelFormat::RGB8;
+    }
+
+    // Extract color metadata
+    switch (decoder->image->colorPrimaries) {
+        case AVIF_COLOR_PRIMARIES_BT709: buffer.color_profile.primaries = ColorPrimaries::BT709_sRGB; break;
+        case AVIF_COLOR_PRIMARIES_BT2020: buffer.color_profile.primaries = ColorPrimaries::BT2020; break;
+        case AVIF_COLOR_PRIMARIES_SMPTE432:
+        case AVIF_COLOR_PRIMARIES_SMPTE431: buffer.color_profile.primaries = ColorPrimaries::DCI_P3; break;
+        default: buffer.color_profile.primaries = ColorPrimaries::Unspecified; break;
+    }
+
+    switch (decoder->image->transferCharacteristics) {
+        case AVIF_TRANSFER_CHARACTERISTICS_SRGB: buffer.color_profile.transfer = TransferCharacteristics::sRGB; break;
+        case AVIF_TRANSFER_CHARACTERISTICS_LINEAR: buffer.color_profile.transfer = TransferCharacteristics::Linear; break;
+        case AVIF_TRANSFER_CHARACTERISTICS_SMPTE2084: buffer.color_profile.transfer = TransferCharacteristics::PQ; break;
+        case AVIF_TRANSFER_CHARACTERISTICS_HLG: buffer.color_profile.transfer = TransferCharacteristics::HLG; break;
+        default: buffer.color_profile.transfer = TransferCharacteristics::sRGB; break;
+    }
+
+    size_t byte_count = static_cast<size_t>(rgb.width) * rgb.height * buffer.channels * (rgb.depth / 8);
+    buffer.data.assign(rgb.pixels, rgb.pixels + byte_count);
+
+    // Extract EXIF metadata if present in AVIF container
+    const avifRWData& exif = decoder->image->exif;
+    if (exif.data != nullptr && exif.size > 0) {
+        buffer.exif_data.assign(exif.data, exif.data + exif.size);
     }
 
     avifRGBImageFreePixels(&rgb);
     avifDecoderDestroy(decoder);
     return buffer;
+#undef avifResultError /*helper*/
 }
 
-uint32_t AvifCodec::get_frame_count(const std::filesystem::path& avif_path) {
+uint32_t AvifCodec::get_frame_count(std::span<const uint8_t> data) {
+    if (data.empty()) return 0;
+
     avifDecoder* decoder = avifDecoderCreate();
     if (!decoder) return 0;
 
-    if (avifDecoderSetIOFile(decoder, avif_path.string().c_str()) != AVIF_RESULT_OK ||
+    if (avifDecoderSetIOMemory(decoder, data.data(), data.size()) != AVIF_RESULT_OK ||
         avifDecoderParse(decoder) != AVIF_RESULT_OK) {
         avifDecoderDestroy(decoder);
         return 0;

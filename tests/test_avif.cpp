@@ -50,17 +50,22 @@ void run_avif_codec_tests() {
 
     // Test 1: JPEG encode to file and decode back
     auto original = make_test_pattern(128, 96, 0);
-    if (!JpegCodec::encode_file(original, jpg_path, 90)) {
-        throw std::runtime_error("JpegCodec::encode_file failed");
+    EncodeOptions jpg_file_opts;
+    jpg_file_opts.format = ImageFormat::JPEG;
+    jpg_file_opts.quality = 90;
+    if (!ImageCodec::encode_file(original, jpg_path, jpg_file_opts)) {
+        throw std::runtime_error("ImageCodec::encode_file (JPEG) failed");
     }
 
-    auto decoded_jpg = JpegCodec::decode_file(jpg_path);
+    auto decoded_jpg = ImageCodec::decode_file(jpg_path);
     if (decoded_jpg.empty() || decoded_jpg.width != 128 || decoded_jpg.height != 96) {
-        throw std::runtime_error("JpegCodec::decode_file failed to restore dimensions");
+        throw std::runtime_error("ImageCodec::decode_file (JPEG) failed to restore dimensions");
     }
 
     // Test 2: JPEG in-memory encode and decode
-    auto mem_jpg = JpegCodec::encode_memory(original, 85);
+    EncodeOptions mem_opts;
+    mem_opts.quality = 85;
+    auto mem_jpg = JpegCodec::encode_memory(original, mem_opts);
     if (mem_jpg.empty()) {
         throw std::runtime_error("JpegCodec::encode_memory failed");
     }
@@ -68,6 +73,25 @@ void run_avif_codec_tests() {
     auto decoded_mem = JpegCodec::decode_memory(mem_jpg);
     if (decoded_mem.empty() || decoded_mem.width != 128 || decoded_mem.height != 96) {
         throw std::runtime_error("JpegCodec::decode_memory failed");
+    }
+
+    // Test 2b: JPEG encode and decode preserving EXIF marker via jpeg_save_markers
+    ImageBuffer original_with_exif = original;
+    original_with_exif.exif_data = {
+        'E', 'x', 'i', 'f', 0x00, 0x00,
+        0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+        0x00, 0x00
+    };
+    auto mem_jpg_exif = JpegCodec::encode_memory(original_with_exif, mem_opts);
+    if (mem_jpg_exif.empty()) {
+        throw std::runtime_error("JpegCodec::encode_memory with EXIF failed");
+    }
+    auto decoded_mem_exif = JpegCodec::decode_memory(mem_jpg_exif);
+    if (decoded_mem_exif.empty() || decoded_mem_exif.exif_data.empty()) {
+        throw std::runtime_error("JpegCodec::decode_memory failed to extract EXIF via jpeg_save_markers");
+    }
+    if (decoded_mem_exif.exif_data != original_with_exif.exif_data) {
+        throw std::runtime_error("EXIF payload mismatch in JpegCodec decode_memory");
     }
 
     // Test 3: Corrupted JPEG exception-safe recovery
@@ -78,8 +102,12 @@ void run_avif_codec_tests() {
     }
 
     // Test 4: AVIF Still Image encode and decode
-    if (!AvifCodec::encode_still_image(original, avif_still_path, 80, 6)) {
-        throw std::runtime_error("AvifCodec::encode_still_image failed");
+    EncodeOptions avif_opts;
+    avif_opts.format = ImageFormat::AVIF;
+    avif_opts.quality = 80;
+    avif_opts.speed = 6;
+    if (!ImageCodec::encode_file(original, avif_still_path, avif_opts)) {
+        throw std::runtime_error("ImageCodec::encode_file (AVIF) failed");
     }
 
     auto decoded_avif = ImageCodec::decode_file(avif_still_path);
@@ -93,19 +121,22 @@ void run_avif_codec_tests() {
         burst_frames.push_back(make_test_pattern(128, 96, i * 2)); // Slightly shifting burst motion
     }
 
-    if (!AvifCodec::encode_burst_sequence(burst_frames, avif_burst_path, 80, 6)) {
-        throw std::runtime_error("AvifCodec::encode_burst_sequence failed");
+    EncodeOptions burst_opts;
+    burst_opts.quality = 80;
+    burst_opts.speed = 6;
+    if (!ImageCodec::encode_burst_file(burst_frames, avif_burst_path, burst_opts)) {
+        throw std::runtime_error("ImageCodec::encode_burst_file failed");
     }
 
     // Test 6: Verify frame count
-    uint32_t frame_count = AvifCodec::get_frame_count(avif_burst_path);
+    uint32_t frame_count = ImageCodec::get_frame_count(avif_burst_path);
     if (frame_count != 5) {
         throw std::runtime_error("Expected 5 frames in AVIF burst container, got: " + std::to_string(frame_count));
     }
 
     // Test 7: Extract individual frames (Frame 0 Keyframe, Frame 2, Frame 4 P-Frames)
     for (uint32_t idx : {0u, 2u, 4u}) {
-        auto extracted = AvifCodec::extract_frame(avif_burst_path, idx);
+        auto extracted = ImageCodec::extract_frame(avif_burst_path, idx);
         if (extracted.empty() || extracted.width != 128 || extracted.height != 96) {
             throw std::runtime_error("Failed to extract frame " + std::to_string(idx) + " from burst container");
         }
@@ -124,8 +155,8 @@ void run_avif_codec_tests() {
     hdr_buf.color_profile.primaries = ColorPrimaries::BT2020;
     hdr_buf.color_profile.transfer = TransferCharacteristics::PQ;
 
-    if (!AvifCodec::encode_still_image(hdr_buf, avif_hdr_path, hdr_opts)) {
-        throw std::runtime_error("AvifCodec with 10-bit YUV444 HDR EncodeOptions failed");
+    if (!ImageCodec::encode_file(hdr_buf, avif_hdr_path, hdr_opts)) {
+        throw std::runtime_error("ImageCodec with 10-bit YUV444 HDR EncodeOptions failed");
     }
 
     auto decoded_hdr = ImageCodec::decode_file(avif_hdr_path);
@@ -140,9 +171,34 @@ void run_avif_codec_tests() {
     // Test 9: JPEG DecodeOptions downscale factor test
     DecodeOptions dec_opts;
     dec_opts.downscale_factor = 2;
-    auto half_decoded_jpg = JpegCodec::decode_file(jpg_path, dec_opts);
+    auto half_decoded_jpg = ImageCodec::decode_file(jpg_path, dec_opts);
     if (half_decoded_jpg.empty() || half_decoded_jpg.width != 64 || half_decoded_jpg.height != 48) {
-        throw std::runtime_error("JpegCodec 1/2 downscaling decode failed");
+        throw std::runtime_error("ImageCodec 1/2 downscaling decode failed");
+    }
+
+    // Test 10: EXIF preservation between ImageBuffer and AVIF
+    const auto avif_exif_path = temp_dir / "sample_exif.avif";
+    ImageBuffer exif_buf = original;
+    // Minimal valid TIFF EXIF payload starting with Exif\0\0 + II*\0 (Intel little-endian)
+    std::vector<uint8_t> sample_exif = {
+        'E', 'x', 'i', 'f', 0x00, 0x00,
+        0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, // TIFF header (offset to IFD0 = 8)
+        0x00, 0x00 // 0 tags in IFD0
+    };
+    exif_buf.exif_data = sample_exif;
+
+    EncodeOptions exif_enc_opts;
+    exif_enc_opts.format = ImageFormat::AVIF;
+    if (!ImageCodec::encode_file(exif_buf, avif_exif_path, exif_enc_opts)) {
+        throw std::runtime_error("Failed to encode AVIF with EXIF metadata");
+    }
+
+    auto decoded_exif_avif = ImageCodec::decode_file(avif_exif_path);
+    if (decoded_exif_avif.empty()) {
+        throw std::runtime_error("Failed to decode AVIF with EXIF metadata");
+    }
+    if (decoded_exif_avif.exif_data.empty()) {
+        throw std::runtime_error("EXIF metadata was lost during AVIF encode/decode");
     }
 
     // Clean up test files
