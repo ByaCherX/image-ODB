@@ -1,5 +1,7 @@
 #include "image_odb/jpeg_codec.h"
+#include "image_odb/util.h"
 #include <spdlog/spdlog.h>
+#include <string_view>
 #include <jpeglib.h>
 #include <setjmp.h>
 #include <fstream>
@@ -10,6 +12,8 @@
 #pragma warning(push)
 #pragma warning(disable: 4611 4324)
 #endif
+
+using namespace std::string_view_literals;
 
 namespace image_odb::codec {
 
@@ -25,6 +29,7 @@ struct RawDecompressResult {
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t channels = 0;
+    std::vector<uint8_t> exif_data;
 };
 
 struct RawCompressResult {
@@ -91,8 +96,19 @@ RawDecompressResult raw_decompress_jpeg(const uint8_t* data, size_t size, int do
     }
 
     jpeg_create_decompress(&cinfo);
+    jpeg_save_markers(&cinfo, JPEG_APP0 + 1, 0xFFFF);
     jpeg_mem_src(&cinfo, const_cast<unsigned char*>(data), static_cast<unsigned long>(size));
     jpeg_read_header(&cinfo, TRUE);
+
+    for (jpeg_saved_marker_ptr m = cinfo.marker_list; m != nullptr; m = m->next) {
+        if (m->marker == JPEG_APP0 + 1) {
+            std::span<const uint8_t> marker_data(m->data, m->data_length);
+            if (util::starts_with(marker_data, "Exif\0\0"sv)) {
+                res.exif_data.assign(m->data, m->data + m->data_length);
+                break;
+            }
+        }
+    }
 
     if (downscale_factor >= 8) {
         cinfo.scale_num = 1;
@@ -131,7 +147,8 @@ RawDecompressResult raw_decompress_jpeg(const uint8_t* data, size_t size, int do
 }
 
 RawCompressResult raw_compress_jpeg(const uint8_t* img_data, uint32_t width, uint32_t height, 
-                                    uint32_t channels, int quality, ChromaSubsampling subsampling) {
+                                    uint32_t channels, int quality, ChromaSubsampling subsampling,
+                                    const std::vector<uint8_t>& exif_data = {}) {
     struct jpeg_compress_struct cinfo;
     struct CustomJpegErrorMgr jerr;
 
@@ -162,6 +179,19 @@ RawCompressResult raw_compress_jpeg(const uint8_t* img_data, uint32_t width, uin
     apply_jpeg_subsampling(&cinfo, subsampling);
     jpeg_set_quality(&cinfo, std::clamp(quality, 1, 100), TRUE);
     jpeg_start_compress(&cinfo, TRUE);
+
+    // Write EXIF APP1 marker if present
+    if (!exif_data.empty()) {
+        if (util::starts_with(exif_data, "Exif\0\0"sv)) {
+            jpeg_write_marker(&cinfo, JPEG_APP0 + 1, exif_data.data(), static_cast<unsigned int>(exif_data.size()));
+        } else {
+            std::vector<uint8_t> prefixed_exif;
+            prefixed_exif.reserve(6 + exif_data.size());
+            prefixed_exif.insert(prefixed_exif.end(), {'E', 'x', 'i', 'f', 0, 0});
+            prefixed_exif.insert(prefixed_exif.end(), exif_data.begin(), exif_data.end());
+            jpeg_write_marker(&cinfo, JPEG_APP0 + 1, prefixed_exif.data(), static_cast<unsigned int>(prefixed_exif.size()));
+        }
+    }
 
     while (cinfo.next_scanline < cinfo.image_height) {
         const uint8_t* row_src = img_data + (cinfo.next_scanline * width * channels);
@@ -219,6 +249,7 @@ ImageBuffer JpegCodec::decode_memory(std::span<const uint8_t> data, const Decode
     buffer.color_profile.primaries = ColorPrimaries::BT709_sRGB;
     buffer.color_profile.transfer = TransferCharacteristics::sRGB;
     buffer.data.assign(raw.data, raw.data + (static_cast<size_t>(raw.width) * raw.height * raw.channels));
+    buffer.exif_data = std::move(raw.exif_data);
 
     std::free(raw.data);
     return buffer;
@@ -232,7 +263,8 @@ std::vector<uint8_t> JpegCodec::encode_memory(const ImageBuffer& image, const En
                                  image.height, 
                                  image.channels, 
                                  options.quality, 
-                                 options.subsampling);
+                                 options.subsampling,
+                                 image.exif_data);
     if (!raw.data || raw.size == 0) return {};
 
     std::vector<uint8_t> result(raw.data, raw.data + raw.size);
