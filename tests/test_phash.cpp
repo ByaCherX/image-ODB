@@ -1,4 +1,4 @@
-﻿#include "image_odb/phash.h"
+#include "image_odb/phash.h"
 #include <cassert>
 #include <stdexcept>
 #include <iostream>
@@ -6,7 +6,7 @@
 
 namespace {
 
-image_odb::ImageBuffer make_solid_color_image(uint32_t w, uint32_t h, uint8_t r, uint8_t g, uint8_t b) {
+[[maybe_unused]] image_odb::ImageBuffer make_solid_color_image(uint32_t w, uint32_t h, uint8_t r, uint8_t g, uint8_t b) {
     image_odb::ImageBuffer buf;
     buf.width = w;
     buf.height = h;

@@ -1,7 +1,7 @@
 #include "image_odb/lru_cache.h"
 #include "image_odb/disk_cache.h"
 #include "image_odb/cache_manager.h"
-#include "image_odb/jpeg_codec.h"
+#include "image_odb/image_codec.h"
 #include <cassert>
 #include <stdexcept>
 #include <filesystem>
@@ -137,7 +137,8 @@ void run_cache_tests() {
     {
         const auto source_img_path = temp_cache_dir / "original.jpg";
         auto orig = make_dummy_image(800, 600, 120);
-        codec::JpegCodec::encode_file(orig, source_img_path, 90);
+        EncodeOptions opts{.format = ImageFormat::JPEG, .quality = 90};
+        codec::ImageCodec::encode_file(orig, source_img_path, opts);
 
         CacheManager manager(temp_cache_dir / ".two_tier_cache", 10 * 1024 * 1024);
 

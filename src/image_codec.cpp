@@ -1,9 +1,11 @@
 #include "image_odb/image_codec.h"
 #include "image_odb/jpeg_codec.h"
 #include "image_odb/avif_codec.h"
+#include "image_odb/util.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 
 namespace image_odb::codec {
 

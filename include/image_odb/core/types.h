@@ -120,6 +120,7 @@ struct ImageBuffer {
     PixelFormat format{PixelFormat::RGB8}; /**< Memory layout and data type specification */
     ColorProfile color_profile; /**< Color gamut and transfer function metadata */
     std::vector<uint8_t> data; /**< Contiguous raw byte storage holding interleaved pixel data */
+    std::vector<uint8_t> exif_data; /**< Raw EXIF metadata payload (JPEG APP1 / AVIF exif item) */
 
     [[nodiscard]] uint32_t bit_depth() const noexcept {
         switch (format) {

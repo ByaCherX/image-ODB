@@ -30,7 +30,10 @@ std::filesystem::path DiskCache::save_preview(const std::string& identifier,
                                               int quality) {
     initialize();
     auto target_path = get_preview_path(identifier);
-    if (codec::ImageCodec::encode_file(image, target_path, ImageFormat::AVIF, quality)) {
+    EncodeOptions opts;
+    opts.format = ImageFormat::AVIF;
+    opts.quality = quality;
+    if (codec::ImageCodec::encode_file(image, target_path, opts)) {
         spdlog::debug("DiskCache: Saved AVIF preview for '{}' to '{}'", identifier, target_path.string());
         return target_path;
     }
