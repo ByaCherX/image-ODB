@@ -1,11 +1,9 @@
 #include "image_odb/exif_reader.h"
 #include "image_odb/util.h"
 #include <tinyexif.h>
-#include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <regex>
-#include <spdlog/spdlog.h>
 
 namespace image_odb::metadata {
 

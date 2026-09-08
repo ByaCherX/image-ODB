@@ -2,7 +2,6 @@
 #include "image_odb/phash.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
-#include <cmath>
 
 namespace image_odb::detector {
 

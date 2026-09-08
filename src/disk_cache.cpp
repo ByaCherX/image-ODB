@@ -1,7 +1,5 @@
 #include "image_odb/disk_cache.h"
 #include "image_odb/image_codec.h"
-#include "image_odb/avif_codec.h"
-#include "image_odb/jpeg_codec.h"
 #include <spdlog/spdlog.h>
 
 namespace image_odb::cache {

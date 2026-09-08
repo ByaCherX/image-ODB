@@ -1,9 +1,7 @@
 #include "image_odb/avif_codec.h"
-#include "image_odb/image_codec.h"
 #include "image_odb/image_odb.h"
 #include <avif/avif.h>
 #include <spdlog/spdlog.h>
-#include <fstream>
 #include <algorithm>
 
 namespace image_odb::codec {

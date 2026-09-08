@@ -4,8 +4,6 @@
 #include <string_view>
 #include <jpeglib.h>
 #include <setjmp.h>
-#include <fstream>
-#include <cstdlib>
 #include <algorithm>
 
 #if defined(_MSC_VER)

@@ -1,7 +1,6 @@
 #include "image_odb/core/pipeline.h"
 #include "image_odb/exif_reader.h"
 #include "image_odb/image_codec.h"
-#include "image_odb/avif_codec.h"
 #include "image_odb/phash.h"
 #include "image_odb/thumbhash.h"
 #include "image_odb/similarity_engine.h"
@@ -11,7 +10,6 @@
 #include <iomanip>
 #include <sstream>
 #include <thread>
-#include <future>
 #include <mutex>
 #include <algorithm>
 #include <unordered_set>
