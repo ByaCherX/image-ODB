@@ -1,5 +1,4 @@
 #include "image_odb/thumbhash.h"
-#include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -254,7 +253,6 @@ std::vector<uint8_t> ThumbHash::encode(const ImageBuffer& image) {
         out.push_back(static_cast<uint8_t>((q1 << 4) | q2));
     }
 
-    spdlog::debug("ThumbHash::encode: generated {} bytes hash for {}x{} image", out.size(), image.width, image.height);
     return out;
 }
 

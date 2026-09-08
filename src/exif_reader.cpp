@@ -41,7 +41,6 @@ bool ExifReader::exif_convert(std::span<const uint8_t> data, Photo& photo) {
     }
 
     if (!info.Fields) {
-        spdlog::debug("No EXIF metadata fields parsed from memory buffer (res={})", parse_res);
         return false;
     }
 

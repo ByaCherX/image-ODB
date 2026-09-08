@@ -76,6 +76,9 @@ image_odb::ImageBuffer make_burst_pattern(uint32_t w, uint32_t h, uint8_t offset
 void run_pipeline_tests() {
     using namespace image_odb;
 
+    assert(std::string(image_odb_version) == IMAGE_ODB_VERSION);
+    assert(image_odb_version_number() == IMAGE_ODB_VERSION_NUMBER);
+
     const std::filesystem::path test_workspace = "test_workspace_m6";
     const std::filesystem::path photos_dir = test_workspace / "input_photos";
 

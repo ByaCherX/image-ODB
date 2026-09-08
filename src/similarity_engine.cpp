@@ -59,15 +59,12 @@ std::vector<BurstCandidateGroup> SimilarityEngine::find_burst_groups(
             // Check visual similarity via pHash
             uint32_t dist = hash::PHash::hamming_distance(prev.phash, next.phash);
             if (dist <= max_hamming_distance) {
-                spdlog::debug("SimilarityEngine: Grouping photo '{}' with burst (pHash dist={})",
-                              next.file_path.filename().string(), dist);
                 current_group.photos.push_back(next);
                 visited[j] = true;
             }
         }
 
         if (current_group.photos.size() >= 2) {
-            spdlog::debug("SimilarityEngine: Formed burst group with {} frames", current_group.photos.size());
             groups.push_back(std::move(current_group));
         }
     }

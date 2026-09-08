@@ -37,9 +37,7 @@ std::string Pipeline::compute_hash(const std::filesystem::path& file_path) {
     for (size_t i = 0; i < BLAKE3_OUT_LEN; ++i) {
         oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(output[i]);
     }
-    std::string hash_str = oss.str();
-    spdlog::debug("Pipeline::compute_hash: '{}' -> {}", file_path.filename().string(), hash_str);
-    return hash_str;
+    return oss.str();
 }
 
 Pipeline::Pipeline(db::Database& database, cache::CacheManager& cache_manager, std::filesystem::path working_dir)
@@ -105,7 +103,6 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
             {
                 std::lock_guard<std::mutex> lock(results_mutex);
                 if (db_.exists_by_hash(initial_hash) || db_.exists_by_path(original_file_path)) {
-                    spdlog::debug("Pipeline: Skipping already indexed photo: '{}'", original_file_path.string());
                     processed_count++;
                     if (callback) callback(processed_count.load(), total_files, original_file_path.filename().string());
                     continue;
@@ -166,18 +163,12 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                     }
                 }
 
-                spdlog::debug("Pipeline: Processed '{}' ({}x{}, pHash: 0x{:016x}, ThumbHash: '{}')",
-                              effective_path.filename().string(), p.dimensions.width, p.dimensions.height, p.phash, p.thumbhash);
-
                 // Generate preview thumbnail if requested
                 if (options.generate_previews && options.cache_mode != CacheMode::NONE) {
                     auto preview = codec::ImageCodec::resize_aspect_fit(img, 500, 500);
                     if (preview.empty()) preview = img;
                     cache_mgr_.put_preview(p.hash, preview);
-                    spdlog::debug("Pipeline: Saved AVIF preview thumbnail for '{}'", p.hash);
                 }
-            } else {
-                spdlog::warn("Pipeline: Could not decode image file: '{}'", original_file_path.string());
             }
 
             local_photos.push_back(std::move(p));

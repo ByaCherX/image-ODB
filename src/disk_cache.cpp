@@ -12,7 +12,6 @@ DiskCache::DiskCache(std::filesystem::path cache_root)
 void DiskCache::initialize() {
     if (!std::filesystem::exists(previews_dir_)) {
         std::filesystem::create_directories(previews_dir_);
-        spdlog::debug("DiskCache: Created preview directory '{}'", previews_dir_.string());
     }
 }
 
@@ -34,7 +33,6 @@ std::filesystem::path DiskCache::save_preview(const std::string& identifier,
     opts.format = ImageFormat::AVIF;
     opts.quality = quality;
     if (codec::ImageCodec::encode_file(image, target_path, opts)) {
-        spdlog::debug("DiskCache: Saved AVIF preview for '{}' to '{}'", identifier, target_path.string());
         return target_path;
     }
     spdlog::warn("DiskCache: Failed to encode/save AVIF preview for '{}' to '{}'", identifier, target_path.string());
@@ -52,7 +50,6 @@ std::optional<ImageBuffer> DiskCache::load_preview(const std::string& identifier
         spdlog::warn("DiskCache: Failed to decode preview from '{}'", path.string());
         return std::nullopt;
     }
-    spdlog::debug("DiskCache: Loaded preview for '{}' from '{}'", identifier, path.string());
     return img;
 }
 
@@ -61,7 +58,6 @@ bool DiskCache::delete_preview(const std::string& identifier) {
     if (std::filesystem::exists(path)) {
         std::error_code ec;
         std::filesystem::remove(path, ec);
-        spdlog::debug("DiskCache: Deleted cached file '{}'", path.string());
         return true;
     }
     return false;
@@ -71,7 +67,6 @@ void DiskCache::clear() {
     if (std::filesystem::exists(previews_dir_)) {
         std::filesystem::remove_all(previews_dir_);
         initialize();
-        spdlog::debug("DiskCache: Cleared all cached preview files");
     }
 }
 

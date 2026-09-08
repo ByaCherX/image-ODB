@@ -45,10 +45,8 @@ void custom_jpeg_error_exit(j_common_ptr cinfo) {
     longjmp(myerr->setjmp_buffer, 1);
 }
 
-void custom_jpeg_output_message(j_common_ptr cinfo) {
-    char buffer[JMSG_LENGTH_MAX];
-    (*cinfo->err->format_message)(cinfo, buffer);
-    spdlog::debug("libjpeg message: {}", buffer);
+void custom_jpeg_output_message(j_common_ptr /*cinfo*/) {
+    // Suppress verbose informational messages from libjpeg
 }
 
 void apply_jpeg_subsampling(jpeg_compress_struct* cinfo, ChromaSubsampling subsampling) {

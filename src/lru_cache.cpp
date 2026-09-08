@@ -1,5 +1,4 @@
 #include "image_odb/lru_cache.h"
-#include <spdlog/spdlog.h>
 
 namespace image_odb::cache {
 
@@ -33,7 +32,6 @@ void LruMemoryCache::put(const std::string& key, const ImageBuffer& buffer) {
     // Evict least recently used entries if over capacity
     while (current_size_bytes_ + item_size > capacity_bytes_ && !items_list_.empty()) {
         auto& last = items_list_.back();
-        spdlog::debug("LruMemoryCache: Evicting '{}' ({} bytes)", last.key, last.size_bytes);
         current_size_bytes_ -= last.size_bytes;
         items_map_.erase(last.key);
         items_list_.pop_back();
@@ -43,11 +41,6 @@ void LruMemoryCache::put(const std::string& key, const ImageBuffer& buffer) {
         items_list_.push_front(CacheEntry{key, buffer, item_size});
         items_map_[key] = items_list_.begin();
         current_size_bytes_ += item_size;
-        spdlog::debug("LruMemoryCache: Stored '{}' ({} bytes, total used: {}/{} bytes, items: {})",
-                      key, item_size, current_size_bytes_, capacity_bytes_, items_map_.size());
-    } else {
-        spdlog::debug("LruMemoryCache: Item '{}' ({} bytes) exceeds total capacity ({} bytes), skipping cache",
-                      key, item_size, capacity_bytes_);
     }
 }
 
@@ -73,7 +66,6 @@ void LruMemoryCache::clear() {
     items_list_.clear();
     items_map_.clear();
     current_size_bytes_ = 0;
-    spdlog::debug("LruMemoryCache: Cleared all items");
 }
 
 size_t LruMemoryCache::current_size_bytes() const noexcept {

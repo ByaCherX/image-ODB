@@ -105,7 +105,6 @@ ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::
         case ImageFormat::AVIF:
             return AvifCodec::decode_memory(data, options);
         default:
-            spdlog::warn("Unsupported image format for in-memory decoding");
             return {};
     }
 }
@@ -123,9 +122,6 @@ std::vector<uint8_t> ImageCodec::encode_memory(const ImageBuffer& image, const E
 
 bool ImageCodec::encode_file(const ImageBuffer& image, const std::filesystem::path& output_path, const EncodeOptions& options) {
     if (image.empty()) return false;
-
-    spdlog::debug("ImageCodec::encode_file: encoding to '{}' (format={}, quality={})",
-                  output_path.string(), options.format == ImageFormat::AVIF ? "AVIF" : "JPEG", options.quality);
 
     auto bytes = encode_memory(image, options);
     if (bytes.empty()) return false;
@@ -171,8 +167,6 @@ ImageBuffer ImageCodec::resize_aspect_fit(const ImageBuffer& src, uint32_t max_w
 
     uint32_t dst_w = std::max<uint32_t>(1, static_cast<uint32_t>(std::round(src.width * scale)));
     uint32_t dst_h = std::max<uint32_t>(1, static_cast<uint32_t>(std::round(src.height * scale)));
-    spdlog::debug("ImageCodec::resize_aspect_fit: resizing {}x{} -> {}x{} (scale={:.3f})",
-                  src.width, src.height, dst_w, dst_h, scale);
 
     ImageBuffer dst;
     dst.width = dst_w;

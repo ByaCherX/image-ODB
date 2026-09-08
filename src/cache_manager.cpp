@@ -18,7 +18,6 @@ std::optional<ImageBuffer> CacheManager::get_or_create_preview(
     // Tier 1: Check RAM LRU Cache (if enabled)
     if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::RAM_ONLY) {
         if (auto mem_hit = memory_cache_.get(identifier); mem_hit.has_value()) {
-            spdlog::debug("Cache HIT (RAM): {}", identifier);
             return mem_hit;
         }
     }
@@ -27,7 +26,6 @@ std::optional<ImageBuffer> CacheManager::get_or_create_preview(
     if (cache_mode_ == CacheMode::ALL || cache_mode_ == CacheMode::DISK_ONLY) {
         if (disk_cache_.has_preview(identifier)) {
             if (auto disk_hit = disk_cache_.load_preview(identifier); disk_hit.has_value()) {
-                spdlog::debug("Cache HIT (Disk): {}", identifier);
                 if (cache_mode_ == CacheMode::ALL) {
                     memory_cache_.put(identifier, *disk_hit);
                 }
@@ -64,7 +62,6 @@ std::optional<ImageBuffer> CacheManager::get_or_create_preview(
         memory_cache_.put(identifier, preview_img);
     }
 
-    spdlog::debug("Synthesized AVIF preview (cache_mode={}): {}", static_cast<int>(cache_mode_), identifier);
     return preview_img;
 }
 

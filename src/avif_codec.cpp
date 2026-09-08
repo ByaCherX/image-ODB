@@ -15,7 +15,7 @@ static constexpr std::string_view APP_XMP_METADATA = R"(<x:xmpmeta xmlns:x="adob
   <rdf:Description
     rdf:about="image-odb is a database for images, and it also supports conversions to AVIF format."
     xmlns:tiff="http://ns.adobe.com/tiff/1.0/">
-   <tiff:Software>image-odb )" IMAGE_ODB_VERSION_STRING R"(</tiff:Software>
+   <tiff:Software>image-odb )" IMAGE_ODB_VERSION R"(</tiff:Software>
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>)";

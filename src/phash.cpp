@@ -1,5 +1,4 @@
 #include "image_odb/phash.h"
-#include <spdlog/spdlog.h>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -110,7 +109,6 @@ uint64_t PHash::compute(const ImageBuffer& image) {
         }
     }
 
-    spdlog::debug("PHash::compute: calculated pHash 0x{:016x} for image {}x{}", hash, image.width, image.height);
     return hash;
 }
 

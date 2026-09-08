@@ -299,7 +299,6 @@ int64_t Database::insert_photo(Photo& photo) {
         bind_photo_params(query, photo);
         query.exec();
         photo.id = db_->getLastInsertRowid();
-        spdlog::debug("Database: Inserted photo id={} ('{}', hash: {})", photo.id, photo.file_path.string(), photo.hash);
         return photo.id;
     } catch (const SQLite::Exception& ex) {
         spdlog::error("Failed to insert photo {}: {}", photo.file_path.string(), ex.what());
@@ -327,7 +326,6 @@ bool Database::update_photo(const Photo& photo) {
         bind_photo_params(query, photo);
         query.bind(":id", static_cast<int64_t>(photo.id));
         query.exec();
-        spdlog::debug("Database: Updated photo id={}", photo.id);
         return true;
     } catch (const SQLite::Exception& ex) {
         spdlog::error("Failed to update photo id {}: {}", photo.id, ex.what());
@@ -389,8 +387,6 @@ int64_t Database::insert_burst_frame(BurstFrame& frame) {
 
         query.exec();
         frame.id = db_->getLastInsertRowid();
-        spdlog::debug("Database: Inserted burst frame id={} for photo_id={}, index={}",
-                      frame.id, frame.photo_id, frame.frame_index);
         return frame.id;
     } catch (const SQLite::Exception& ex) {
         spdlog::error("Failed to insert burst frame: {}", ex.what());
@@ -404,7 +400,6 @@ std::optional<Photo> Database::find_by_path(const std::filesystem::path& path) {
         SQLite::Statement query(*db_, sql);
         query.bind(1, path.generic_string());
         if (query.executeStep()) {
-            spdlog::debug("Database: find_by_path found photo for '{}'", path.string());
             return hydrate_photo(query);
         }
     } catch (const SQLite::Exception& ex) {
@@ -419,7 +414,6 @@ std::optional<Photo> Database::find_by_id(int64_t id) {
         SQLite::Statement query(*db_, sql);
         query.bind(1, static_cast<int64_t>(id));
         if (query.executeStep()) {
-            spdlog::debug("Database: find_by_id found photo id={}", id);
             return hydrate_photo(query);
         }
     } catch (const SQLite::Exception& ex) {
@@ -559,7 +553,6 @@ std::vector<BurstFrame> Database::get_burst_frames(int64_t photo_id) {
             }
             frames.push_back(std::move(f));
         }
-        spdlog::debug("Database: get_burst_frames for photo_id={} found {} frames", photo_id, frames.size());
     } catch (const SQLite::Exception& ex) {
         spdlog::error("get_burst_frames error: {}", ex.what());
     }
@@ -571,7 +564,6 @@ bool Database::delete_photo(int64_t photo_id) {
         SQLite::Statement query(*db_, "DELETE FROM photos WHERE id = ?");
         query.bind(1, static_cast<int64_t>(photo_id));
         query.exec();
-        spdlog::debug("Database: Deleted photo id={}", photo_id);
         return true;
     } catch (const SQLite::Exception& ex) {
         spdlog::error("delete_photo error: {}", ex.what());

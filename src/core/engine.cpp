@@ -17,9 +17,6 @@ Engine::Engine(std::filesystem::path working_dir)
     const auto db_path = working_dir_ / PHOTO_DB;
     const auto cache_dir = working_dir_ / PHOTO_CACHE;
 
-    spdlog::debug("Engine initializing with working directory: '{}', db: '{}', cache: '{}'",
-                  working_dir_.string(), db_path.string(), cache_dir.string());
-
     database_ = std::make_unique<db::Database>(db_path);
     cache_manager_ = std::make_unique<cache::CacheManager>(cache_dir);
 }
