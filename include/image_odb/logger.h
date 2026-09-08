@@ -14,7 +14,7 @@ namespace image_odb {
 class Logger {
 public:
     static constexpr const char* DEFAULT_LOGGER_NAME = "image_odb";
-    static constexpr const char* DEFAULT_PATTERN = "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v";
+    static constexpr const char* DEFAULT_PATTERN = "[%^%l%$] %v";
     static constexpr spdlog::level::level_enum DEFAULT_LEVEL = spdlog::level::info;
 
     /**
@@ -25,7 +25,7 @@ public:
     /**
      * @brief Configure logger with given log level enum and pattern.
      * @param level spdlog log level enum
-     * @param pattern Custom spdlog formatting pattern (default colored: "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v")
+     * @param pattern Custom spdlog formatting pattern (default colored: "[%^%l%$] %v")
      */
     static void configure_with(spdlog::level::level_enum level,
                                std::string_view pattern = DEFAULT_PATTERN);
