@@ -57,22 +57,22 @@ void run_convert_and_cache_tests() {
     // 2. Test Filename Date Fallback Parsing
     auto dt1 = metadata::ExifReader::parse_date_from_filename("IMG_20240815_134520.jpg");
     assert(dt1.has_value());
-    std::string s1 = metadata::ExifReader::format_iso8601(*dt1);
+    std::string s1 = image_odb::util::format_iso8601(*dt1);
     assert(s1.find("2024-08-15") != std::string::npos);
 
     auto dt2 = metadata::ExifReader::parse_date_from_filename("2023-11-20_09-15-30.jpg");
     assert(dt2.has_value());
-    std::string s2 = metadata::ExifReader::format_iso8601(*dt2);
+    std::string s2 = image_odb::util::format_iso8601(*dt2);
     assert(s2.find("2023-11-20") != std::string::npos);
 
     auto dt3 = metadata::ExifReader::parse_date_from_filename("Screenshot_20250610-182045.png");
     assert(dt3.has_value());
-    std::string s3 = metadata::ExifReader::format_iso8601(*dt3);
+    std::string s3 = image_odb::util::format_iso8601(*dt3);
     assert(s3.find("2025-06-10") != std::string::npos);
 
     auto dt4 = metadata::ExifReader::parse_date_from_filename("20220412.jpg");
     assert(dt4.has_value());
-    std::string s4 = metadata::ExifReader::format_iso8601(*dt4);
+    std::string s4 = image_odb::util::format_iso8601(*dt4);
     assert(s4.find("2022-04-12") != std::string::npos);
 
     // 3. Test CacheMode

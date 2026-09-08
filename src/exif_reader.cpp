@@ -97,9 +97,9 @@ bool ExifReader::exif_convert(std::span<const uint8_t> data, Photo& photo) {
 
     // Timestamp
     if (!info.DateTimeOriginal.empty()) {
-        photo.capture_date = parse_exif_date(info.DateTimeOriginal);
+        photo.capture_date = util::parse_exif_date(info.DateTimeOriginal);
     } else if (!info.DateTime.empty()) {
-        photo.capture_date = parse_exif_date(info.DateTime);
+        photo.capture_date = util::parse_exif_date(info.DateTime);
     }
 
     // Extra JSON payload
@@ -110,56 +110,6 @@ bool ExifReader::exif_convert(std::span<const uint8_t> data, Photo& photo) {
     photo.exif_json = extra;
 
     return true;
-}
-
-std::optional<std::chrono::system_clock::time_point> ExifReader::parse_exif_date(const std::string& date_str) {
-    // Format: "YYYY:MM:DD HH:MM:SS" or ISO8601 "YYYY-MM-DDTHH:MM:SS"
-    if (date_str.size() < 19) return std::nullopt;
-
-    std::tm tm{};
-    std::istringstream ss(date_str);
-    char sep1, sep2, sep3, sep4;
-    int year, month, day, hour, min, sec;
-
-    if (date_str[4] == ':') {
-        // EXIF format
-        ss >> year >> sep1 >> month >> sep2 >> day >> hour >> sep3 >> min >> sep4 >> sec;
-    } else {
-        // Standard ISO format
-        ss >> year >> sep1 >> month >> sep2 >> day >> sep3 >> hour >> sep4 >> min >> sep4 >> sec;
-    }
-
-    if (ss.fail()) return std::nullopt;
-
-    tm.tm_year = year - 1900;
-    tm.tm_mon = month - 1;
-    tm.tm_mday = day;
-    tm.tm_hour = hour;
-    tm.tm_min = min;
-    tm.tm_sec = sec;
-    tm.tm_isdst = -1;
-
-#if defined(_WIN32)
-    time_t t = _mkgmtime(&tm);
-#else
-    time_t t = timegm(&tm);
-#endif
-    if (t == -1) return std::nullopt;
-
-    return std::chrono::system_clock::from_time_t(t);
-}
-
-std::string ExifReader::format_iso8601(const std::chrono::system_clock::time_point& tp) {
-    time_t t = std::chrono::system_clock::to_time_t(tp);
-    std::tm tm{};
-#if defined(_WIN32)
-    gmtime_s(&tm, &t);
-#else
-    gmtime_r(&t, &tm);
-#endif
-    std::ostringstream ss;
-    ss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-    return ss.str();
 }
 
 std::optional<std::chrono::system_clock::time_point> ExifReader::parse_date_from_filename(const std::filesystem::path& file_path) {
@@ -181,25 +131,9 @@ std::optional<std::chrono::system_clock::time_point> ExifReader::parse_date_from
             int min = std::stoi(match[5].str());
             int sec = std::stoi(match[6].str());
 
-            if (year >= 1970 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
-                hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
-                std::tm tm{};
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                tm.tm_hour = hour;
-                tm.tm_min = min;
-                tm.tm_sec = sec;
-                tm.tm_isdst = -1;
-
-#if defined(_WIN32)
-                time_t t = _mkgmtime(&tm);
-#else
-                time_t t = timegm(&tm);
-#endif
-                if (t != -1) {
-                    return std::chrono::system_clock::from_time_t(t);
-                }
+            auto tp = util::make_time_point(year, month, day, hour, min, sec);
+            if (tp.has_value()) {
+                return tp;
             }
         } catch (...) {}
     }
@@ -216,24 +150,9 @@ std::optional<std::chrono::system_clock::time_point> ExifReader::parse_date_from
             int month = std::stoi(match[2].str());
             int day = std::stoi(match[3].str());
 
-            if (year >= 1970 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                std::tm tm{};
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                tm.tm_hour = 12;
-                tm.tm_min = 0;
-                tm.tm_sec = 0;
-                tm.tm_isdst = -1;
-
-#if defined(_WIN32)
-                time_t t = _mkgmtime(&tm);
-#else
-                time_t t = timegm(&tm);
-#endif
-                if (t != -1) {
-                    return std::chrono::system_clock::from_time_t(t);
-                }
+            auto tp = util::make_time_point(year, month, day, 12, 0, 0);
+            if (tp.has_value()) {
+                return tp;
             }
         } catch (...) {}
     }

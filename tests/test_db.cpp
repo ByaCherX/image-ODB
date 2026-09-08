@@ -1,5 +1,6 @@
-﻿#include "image_odb/database.h"
+#include "image_odb/database.h"
 #include "image_odb/exif_reader.h"
+#include "image_odb/util.h"
 #include <cassert>
 #include <stdexcept>
 #include <filesystem>
@@ -27,7 +28,7 @@ void run_db_tests() {
         p1.dimensions.height = 4000;
         p1.dimensions.orientation = 1;
         p1.mime_type = "image/jpeg";
-        p1.capture_date = metadata::ExifReader::parse_exif_date("2026:05:10 14:20:00");
+        p1.capture_date = util::parse_exif_date("2026:05:10 14:20:00");
         p1.location.latitude = 35.6762;
         p1.location.longitude = 139.6503;
         p1.location.altitude = 40.0;
@@ -98,7 +99,7 @@ void run_db_tests() {
         burst_container.hash = "2222222222222222222222222222222222222222222222222222222222222222";
         burst_container.dimensions.width = 4000;
         burst_container.dimensions.height = 3000;
-        burst_container.capture_date = metadata::ExifReader::parse_exif_date("2026:06:15 10:00:00");
+        burst_container.capture_date = util::parse_exif_date("2026:06:15 10:00:00");
         burst_container.camera.make = "Canon";
         burst_container.camera.model = "EOS R5";
         burst_container.lens.model = "RF 70-200mm F2.8 L";

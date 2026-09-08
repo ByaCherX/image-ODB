@@ -20,13 +20,6 @@ public:
     static bool exif_convert(std::span<const uint8_t> data, Photo& photo);
 
     /**
-     * @brief Parse standard ISO8601 or EXIF format datetime string ("YYYY:MM:DD HH:MM:SS").
-     * @param date_str The date string to parse.
-     * @return Optional time_point if parsing succeeded.
-     */
-    static std::optional<std::chrono::system_clock::time_point> parse_exif_date(const std::string& date_str);
-
-    /**
      * @brief Parse capture date from filename using common camera and phone naming conventions.
      * Examples: IMG_20240815_134520.jpg, 2024-08-15_13-45-20.jpg, Screenshot_20240815-134520.png, 20240815_134520.jpg
      * @param file_path Path to the image file.
@@ -40,13 +33,6 @@ public:
      * @return Optional time_point.
      */
     static std::optional<std::chrono::system_clock::time_point> get_file_modification_date(const std::filesystem::path& file_path);
-
-    /**
-     * @brief Format a time_point to ISO8601 UTC string ("YYYY-MM-DDTHH:MM:SSZ").
-     * @param tp Time point.
-     * @return Formatted ISO8601 string.
-     */
-    static std::string format_iso8601(const std::chrono::system_clock::time_point& tp);
 };
 
 } // namespace image_odb::metadata

@@ -1,5 +1,6 @@
 #include "image_odb/database.h"
 #include "image_odb/exif_reader.h"
+#include "image_odb/util.h"
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
@@ -111,7 +112,7 @@ Photo hydrate_photo(SQLite::Statement& query) {
 
     const auto capture_col = query.getColumn("capture_date");
     if (!capture_col.isNull()) {
-        p.capture_date = metadata::ExifReader::parse_exif_date(capture_col.getString());
+        p.capture_date = util::parse_datestr(capture_col.getString());
     }
 
     p.location.latitude      = get_optional_column<double>(query, "latitude");
@@ -147,7 +148,7 @@ Photo hydrate_photo(SQLite::Statement& query) {
 
     const auto created_col = query.getColumn("created_at");
     if (!created_col.isNull()) {
-        auto ct = metadata::ExifReader::parse_exif_date(created_col.getString());
+        auto ct = util::parse_datestr(created_col.getString());
         if (ct.has_value()) p.created_at = *ct;
     }
 
@@ -164,7 +165,7 @@ void bind_photo_params(SQLite::Statement& query, const Photo& photo) {
     query.bind(":mime_type", photo.mime_type);
 
     if (photo.capture_date.has_value()) {
-        query.bind(":capture_date", metadata::ExifReader::format_iso8601(*photo.capture_date));
+        query.bind(":capture_date", util::format_iso8601(*photo.capture_date));
     } else {
         query.bind(":capture_date");
     }
@@ -485,7 +486,7 @@ std::vector<Photo> Database::list_photos(const ListOptions& options) {
         static const std::set<std::string> valid_sort_fields = {
             "capture_date", "created_at", "file_size", "iso_speed", "f_number", "phash", "id"
         };
-        std::string sort_field = "capture_date";
+        std::string sort_field = "f_number";
         if (valid_sort_fields.count(options.sort_by)) {
             sort_field = options.sort_by;
         }
@@ -500,8 +501,8 @@ std::vector<Photo> Database::list_photos(const ListOptions& options) {
         if (options.camera_make_filter.has_value()) query.bind(idx++, *options.camera_make_filter);
         if (options.camera_model_filter.has_value()) query.bind(idx++, *options.camera_model_filter);
         if (options.lens_filter.has_value()) query.bind(idx++, "%" + *options.lens_filter + "%");
-        if (options.date_from.has_value()) query.bind(idx++, metadata::ExifReader::format_iso8601(*options.date_from));
-        if (options.date_to.has_value()) query.bind(idx++, metadata::ExifReader::format_iso8601(*options.date_to));
+        if (options.date_from.has_value()) query.bind(idx++, util::format_iso8601(*options.date_from));
+        if (options.date_to.has_value()) query.bind(idx++, util::format_iso8601(*options.date_to));
         if (options.min_iso.has_value()) query.bind(idx++, static_cast<int>(*options.min_iso));
         if (options.max_iso.has_value()) query.bind(idx++, static_cast<int>(*options.max_iso));
         if (options.min_focal_length.has_value()) query.bind(idx++, *options.min_focal_length);
