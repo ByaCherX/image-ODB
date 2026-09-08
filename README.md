@@ -161,7 +161,7 @@ When burst shooting (e.g. sports or wildlife), adjacent frames differ only sligh
   * **Embedded Thumbnails (`--embed-thumb`):** When enabled, downscales image to aspect-fit dimensions ($\le 256\text{px}$) and attaches the preview metadata directly inside the AVIF container.
 * **Unified Image Codec & Extensibility ([`src/image_codec.cpp`](src/image_codec.cpp)):**
   * Automatic format sniffing from magic header bytes or file extensions (`.jpg`, `.jpeg`, `.avif`, `.png`, `.webp`, `.tif`, `.bmp`).
-  * Seamless bidirectional transcoding via CLI commands (`image` and `convert`).
+  * Seamless bidirectional transcoding via CLI command (`image`).
 
 ---
 
@@ -363,21 +363,18 @@ image_cli image photo.jpg -o photo.avif --encode -q 85 -s 6 --embed-thumb
 image_cli image photo.avif -o photo.jpg --decode -q 90
 
 # 4. Scan directory with automatic burst clustering, on-the-fly AVIF conversion, and disk-only cache
-image_cli scan D:\DCIM -d C:\PhotosDB --group-bursts --convert --delete-source --cache disk
+image_cli scan -d D:\DCIM -w C:\PhotosDB --group-bursts --convert --delete-source --cache disk
 
-# 5. Batch convert all non-AVIF indexed photos in the database
-image_cli convert -d C:\PhotosDB --all -f avif -q 80 --embed-thumb
-
-# 6. Filter photos (Tabular view)
+# 5. Filter photos (Tabular view)
 image_cli list -d C:\PhotosDB --camera-make Sony --lens "24-70mm" --limit 10
 
-# 7. Export query results as JSON
+# 6. Export query results as JSON
 image_cli list -d C:\PhotosDB --burst-only --json > bursts.json
 
-# 8. Extract a specific frame from a multi-frame AVIF container
+# 7. Extract a specific frame from a multi-frame AVIF container
 image_cli extract C:\PhotosDB\bursts\burst_1a2b.avif -f 1 -o best_frame.jpg
 
-# 9. Inspect or clear cache
+# 8. Inspect or clear cache
 image_cli cache -d C:\PhotosDB --clear
 ```
 

@@ -2,6 +2,11 @@
 #include "image_odb/core/pipeline.h"
 #include <spdlog/spdlog.h>
 
+const char image_odb_version[] = IMAGE_ODB_VERSION;
+int image_odb_version_number(void) {
+    return IMAGE_ODB_VERSION_NUMBER;
+}
+
 namespace image_odb {
 
 #define PHOTO_DB "photos.db"

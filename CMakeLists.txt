@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(image_odb
-    VERSION 0.1.0
+    VERSION 0.2.0
     LANGUAGES C CXX
     DESCRIPTION "High-performance photo database and AVIF multi-frame archiving library & CLI tool"
 )
@@ -13,7 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Option to build tests and CLI
 option(IMAGE_ODB_BUILD_CLI "Build image_cli command line utility" ON)
-option(IMAGE_ODB_BUILD_TESTS "Build unit and integration tests" ON)
+option(IMAGE_ODB_BUILD_TESTS "Build unit and integration tests" OFF)
 
 # Find Required Dependencies via vcpkg
 find_package(libavif CONFIG REQUIRED)

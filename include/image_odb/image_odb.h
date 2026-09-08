@@ -13,10 +13,14 @@
 
 #pragma once
 
-#define IMAGE_ODB_VERSION_MAJOR 0
-#define IMAGE_ODB_VERSION_MINOR 1
-#define IMAGE_ODB_VERSION_PATCH 0
-#define IMAGE_ODB_VERSION_STRING "0.1.0"
+#define IMAGE_ODB_MAJOR_VERSION  0
+#define IMAGE_ODB_MINOR_VERSION  2
+#define IMAGE_ODB_PATCH_VERSION  0
+#define IMAGE_ODB_VERSION_NUMBER (\
+    IMAGE_ODB_MAJOR_VERSION * 1000000 + \
+    IMAGE_ODB_MINOR_VERSION * 1000 + \
+    IMAGE_ODB_PATCH_VERSION)
+#define IMAGE_ODB_VERSION        "0.2.0"
 
 #include "image_odb/core/types.h"
 #include "image_odb/exif_reader.h"
@@ -36,6 +40,10 @@
 #include <functional>
 #include <memory>
 #include <filesystem>
+
+/** image_odb version numbers  */
+extern const char image_odb_version[];
+int image_odb_version_number(void);
 
 namespace image_odb {
 
@@ -140,13 +148,6 @@ private:
     std::unique_ptr<db::Database> database_;
     std::unique_ptr<cache::CacheManager> cache_manager_;
 };
-
-/**
- * @brief Get library version string.
- */
-inline const char* image_odb_version() noexcept {
-    return IMAGE_ODB_VERSION_STRING;
-}
 
 /**
  * @brief Convenience function to decode an image file from disk.
