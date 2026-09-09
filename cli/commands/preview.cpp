@@ -9,18 +9,13 @@ namespace image_odb::cli {
 
 namespace {
 
-int handle_preview(const std::string& workspace_dir, int64_t photo_id, const std::string& output_file, const std::string& cache_mode_str) {
+int handle_preview(const std::string& workspace_dir, int64_t photo_id, const std::string& output_file) {
     Engine engine(workspace_dir);
     if (!std::filesystem::exists(std::filesystem::path(workspace_dir) / "photos.db")) {
         if (!prompt_first_time_database_init(workspace_dir)) {
             return 1;
         }
     }
-
-    if (cache_mode_str == "disk") engine.cache_manager().set_cache_mode(CacheMode::DISK_ONLY);
-    else if (cache_mode_str == "ram" || cache_mode_str == "memory") engine.cache_manager().set_cache_mode(CacheMode::RAM_ONLY);
-    else if (cache_mode_str == "none" || cache_mode_str == "off") engine.cache_manager().set_cache_mode(CacheMode::NONE);
-    else engine.cache_manager().set_cache_mode(CacheMode::ALL);
 
     auto preview = engine.get_preview(photo_id);
     if (!preview.has_value() || preview->empty()) {
@@ -52,15 +47,13 @@ void register_preview_command(CLI::App& app) {
     static std::string prev_ws = ".";
     static int64_t prev_id = 0;
     static std::string prev_out = "";
-    static std::string prev_cache = "all";
 
     preview_cmd->add_option("id", prev_id, "Photo ID")->required();
     preview_cmd->add_option("-d,--dir", prev_ws, "Workspace directory")->default_val(".");
     preview_cmd->add_option("-o,--output", prev_out, "Optional path to export preview image file");
-    preview_cmd->add_option("--cache", prev_cache, "Cache mode (all, disk, ram, none)")->default_val("all");
 
     preview_cmd->callback([]() {
-        return handle_preview(prev_ws, prev_id, prev_out, prev_cache);
+        return handle_preview(prev_ws, prev_id, prev_out);
     });
 }
 

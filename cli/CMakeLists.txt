@@ -7,7 +7,6 @@ add_executable(image_cli
     commands/list.cpp
     commands/extract.cpp
     commands/preview.cpp
-    commands/cache.cpp
 )
 
 target_include_directories(image_cli

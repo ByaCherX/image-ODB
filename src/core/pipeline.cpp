@@ -38,16 +38,14 @@ std::string Pipeline::compute_hash(const std::filesystem::path& file_path) {
     return oss.str();
 }
 
-Pipeline::Pipeline(db::Database& database, cache::CacheManager& cache_manager, std::filesystem::path working_dir)
-    : db_(database), cache_mgr_(cache_manager), working_dir_(std::move(working_dir)) {}
+Pipeline::Pipeline(db::Database& database, std::filesystem::path working_dir)
+    : db_(database), working_dir_(std::move(working_dir)) {}
 
 uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                                 const ScanOptions& options,
                                 ProgressCallback callback) {
     spdlog::debug("Pipeline::execute_scan: starting scan on '{}' (recursive={}, group_bursts={}, convert_to_avif={})",
                   scan_root.string(), options.recursive, options.group_bursts, options.convert_to_avif);
-
-    cache_mgr_.set_cache_mode(options.cache_mode);
 
     if (!std::filesystem::exists(scan_root)) {
         spdlog::warn("Scan root directory does not exist: {}", scan_root.string());
@@ -161,12 +159,6 @@ uint64_t Pipeline::execute_scan(const std::filesystem::path& scan_root,
                     }
                 }
 
-                // Generate preview thumbnail if requested
-                if (options.generate_previews && options.cache_mode != CacheMode::NONE) {
-                    auto preview = codec::ImageCodec::resize_aspect_fit(img, 500, 500);
-                    if (preview.empty()) preview = img;
-                    cache_mgr_.put_preview(p.hash, preview);
-                }
             }
 
             local_photos.push_back(std::move(p));

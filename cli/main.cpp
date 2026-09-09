@@ -4,7 +4,6 @@
 #include "commands/list.h"
 #include "commands/extract.h"
 #include "commands/preview.h"
-#include "commands/cache.h"
 #include "image_odb/image_odb.h"
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
@@ -64,7 +63,6 @@ int main(int argc, char** argv) {
     image_odb::cli::register_list_command(app);
     image_odb::cli::register_extract_command(app);
     image_odb::cli::register_preview_command(app);
-    image_odb::cli::register_cache_command(app);
 
     // If no arguments are provided, redirect directly to help output
     if (argc == 1) {

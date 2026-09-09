@@ -29,9 +29,6 @@
 #include "image_odb/jpeg_codec.h"
 #include "image_odb/similarity_engine.h"
 #include "image_odb/database.h"
-#include "image_odb/lru_cache.h"
-#include "image_odb/disk_cache.h"
-#include "image_odb/cache_manager.h"
 #include "image_odb/phash.h"
 #include "image_odb/thumbhash.h"
 #include "image_odb/logger.h"
@@ -59,13 +56,13 @@ class Engine {
 public:
     /**
      * @brief Construct Engine initialized with a working/repository directory.
-     * @param working_dir Root directory containing `photos.db` and `.photo_cache/`.
+     * @param working_dir Root directory containing `photos.db`.
      */
     explicit Engine(std::filesystem::path working_dir);
     ~Engine();
 
     /**
-     * @brief Initialize directory structure, create photos.db and cache if needed.
+     * @brief Initialize directory structure and create photos.db schema if needed.
      */
     bool initialize_workspace();
 
@@ -93,15 +90,12 @@ public:
                        const std::filesystem::path& output_path);
 
     /**
-     * @brief Retrieve AVIF thumbnail preview (from memory cache, disk cache, or synthesized on the fly).
+     * @brief Retrieve thumbnail preview (synthesized on the fly from source file).
+     * @param photo_id Database ID of the photo.
+     * @param max_width Thumbnail max width (default: 500).
+     * @param max_height Thumbnail max height (default: 500).
      */
-    std::optional<ImageBuffer> get_preview(int64_t photo_id);
-
-    /**
-     * @brief Clear cache storage.
-     * @param memory_only If true, only RAM cache is cleared; otherwise disk cache is also purged.
-     */
-    void clear_cache(bool memory_only = false);
+    std::optional<ImageBuffer> get_preview(int64_t photo_id, uint32_t max_width = 500, uint32_t max_height = 500);
 
     /**
      * @brief Convert an individual image file on disk to a target format.
@@ -128,25 +122,9 @@ public:
      */
     [[nodiscard]] db::Database& database() noexcept { return *database_; }
 
-    /**
-     * @brief Access the unified two-tier cache manager instance.
-     */
-    [[nodiscard]] cache::CacheManager& cache_manager() noexcept { return *cache_manager_; }
-
-    /**
-     * @brief Access the underlying disk cache instance.
-     */
-    [[nodiscard]] cache::DiskCache& disk_cache() noexcept { return cache_manager_->disk_cache(); }
-
-    /**
-     * @brief Access the in-memory LRU cache instance.
-     */
-    [[nodiscard]] cache::LruMemoryCache& memory_cache() noexcept { return cache_manager_->memory_cache(); }
-
 private:
     std::filesystem::path working_dir_;
     std::unique_ptr<db::Database> database_;
-    std::unique_ptr<cache::CacheManager> cache_manager_;
 };
 
 /**

@@ -1,6 +1,6 @@
 # `image_cli` — Command-Line Interface Guide
 
-`image_cli` is the official high-performance CLI utility for the **image-ODB** photo database and AVIF multi-frame archiving system. It enables fast local indexing, EXIF & optics metadata extraction, perceptual hashing (`pHash`), instant visual placeholders (`ThumbHash`), two-tier caching, and automated burst shot compression into single multi-frame AVIF containers.
+`image_cli` is the official high-performance CLI utility for the **image-ODB** photo database and AVIF multi-frame archiving system. It enables fast local indexing, EXIF & optics metadata extraction, perceptual hashing (`pHash`), instant visual placeholders (`ThumbHash`), and automated burst shot compression into single multi-frame AVIF containers.
 
 ---
 
@@ -15,7 +15,6 @@
    - [`list` — Query & Filter Photos](#4-list--query--filter-photos)
    - [`extract` — Extract Frame from AVIF](#5-extract--extract-frame-from-avif)
    - [`preview` — Get Thumbnail Preview](#6-preview--get-thumbnail-preview)
-   - [`cache` — Inspect & Manage Cache](#7-cache--inspect--manage-cache)
 4. [Real-World Usage Scenarios](#-real-world-usage-scenarios)
 5. [Performance & Tips](#-performance--tips)
 
@@ -33,14 +32,14 @@ image_cli image photo.jpg -o photo.avif --encode -q 85 -s 6 --embed-thumb
 # 3. Decode AVIF back to JPEG
 image_cli image photo.avif -o photo.jpg --decode -q 90
 
-# 4. Ingest photos from an SD card, convert non-AVIFs to AVIF on-the-fly, and save only disk cache
-image_cli scan -d D:\DCIM -w C:\PhotosDB --group-bursts --convert --delete-source --cache disk
+# 4. Ingest photos from an SD card and convert non-AVIFs to AVIF on-the-fly
+image_cli scan -d D:\DCIM -w C:\PhotosDB --group-bursts --convert --delete-source
 
 # 5. Query all Sony photos with ISO <= 400
 image_cli list -d C:\PhotosDB --camera-make Sony --iso-max 400
 
-# 6. View cache disk usage
-image_cli cache -d C:\PhotosDB
+# 6. Retrieve and export on-the-fly photo preview
+image_cli preview 1 -d C:\PhotosDB -o thumb_1.avif
 ```
 
 ---
@@ -60,7 +59,7 @@ image_cli cache -d C:\PhotosDB
 
 ### 1. `init` — Initialize Workspace
 
-Creates the SQLite metadata database (`photos.db`), table schemas, foreign key cascade rules, indices, and the `.photo_cache/` directory.
+Creates the SQLite metadata database (`photos.db`), table schemas, foreign key cascade rules, and indices.
 
 ```bash
 image_cli init [-d <workspace_dir>]
@@ -119,12 +118,10 @@ image_cli scan [options]
 | Flag | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `-d, --dir` | `path` | `.` | Directory containing photos to scan. |
-| `-w, --workspace` | `path` | `.` | Workspace directory for database and cache (default: same as `-d`). |
+| `-w, --workspace` | `path` | `.` | Workspace directory for database (default: same as `-d`). |
 | `--group-bursts` | `flag` | `false` | Automatically detect and compress burst sequences into `.avif` with I-Frame + P-Frames. |
-| `--format` | `string` | `avif` | Thumbnail preview format (`avif` or `jpeg`). |
 | `-t, --threads` | `int` | `0` (Auto) | Number of worker threads for parallel ingestion (`0` = all CPU cores). |
 | `--no-recursive` | `flag` | `false` | Only scan top-level folder without descending into subdirectories. |
-| `--no-previews` | `flag` | `false` | Skip pre-generating thumbnail previews (speeds up initial raw scan). |
 | `--burst-time` | `int` | `3` | Maximum time window in seconds between consecutive burst frames. |
 | `--burst-dist` | `int` | `5` | Maximum allowable pHash Hamming distance for visual similarity clustering. |
 | `--convert` | `flag` | `false` | Automatically convert all non-AVIF images to AVIF format during ingestion. |
@@ -135,13 +132,12 @@ image_cli scan [options]
 | `--convert-depth` | `int` | `8` | Conversion bit depth (`8`, `10`, `12`). |
 | `--convert-out-dir` | `path` | `""` | Optional destination directory for converted AVIFs. |
 | `--delete-source` | `flag` | `false` | Delete original source files after successful AVIF conversion. |
-| `--cache` | `string` | `all` | Cache mode (`all`, `disk`, `ram`, `none`). |
 | `--embed-thumb` | `flag` | `false` | Embed downscaled thumbnail inside converted AVIF. |
 
 #### Examples:
 ```bash
-# Ingest with on-the-fly AVIF conversion, source cleanup, and disk-only cache
-image_cli scan -d D:\DCIM -w C:\PhotosDB --convert --convert-quality 85 --delete-source --cache disk
+# Ingest with on-the-fly AVIF conversion and source cleanup
+image_cli scan -d D:\DCIM -w C:\PhotosDB --convert --convert-quality 85 --delete-source
 
 # High-speed parallel scan with burst clustering
 image_cli scan -d E:\SportsEvents -w C:\PhotosDB --group-bursts --burst-time 5 --burst-dist 3 -t 16
@@ -252,7 +248,7 @@ image_cli extract C:\PhotosDB\bursts\burst_action.avif -f 2 -o C:\Exports\best_s
 
 ### 6. `preview` — Get Thumbnail Preview
 
-Fetches the visual preview for any photo by ID. Resolves in order: **RAM LRU Cache $\to$ Disk Cache $\to$ On-the-fly synthesis**.
+Fetches the visual preview for any photo by ID, synthesized directly on the fly from the original image.
 
 ```bash
 image_cli preview <photo_id> [options]
@@ -261,42 +257,11 @@ image_cli preview <photo_id> [options]
 #### Options:
 * `id` *(Required)*: Database photo ID.
 * `-d, --dir <path>`: Workspace directory (default: `.`).
-* `-o, --output <path>`: Optional destination file path to save the thumbnail preview.
-* `--format <avif|jpeg>`: Desired preview format (default: `avif`).
-* `--cache <all|disk|ram|none>`: Cache mode to honor during preview retrieval (default: `all`).
+* `-o, --output <path>`: Optional destination file path to save the thumbnail preview (e.g. `thumb.avif` or `thumb.jpg`).
 
 #### Example:
 ```bash
-image_cli preview 42 -d C:\PhotosDB -o thumb_42.jpg --format jpeg --cache disk
-```
-
----
-
-### 7. `cache` — Inspect & Manage Cache
-
-Displays cache storage statistics or purges cached files.
-
-```bash
-image_cli cache [options]
-```
-
-#### Options:
-* `-d, --dir <path>`: Workspace directory (default: `.`).
-* `--clear`: Purge cached preview files.
-* `--memory-only`: Clear only in-memory RAM cache without deleting files from disk.
-
-#### Examples:
-```bash
-# View cache usage statistics
-image_cli cache -d C:\PhotosDB
-
-# Output:
-# Cache Location: C:\PhotosDB\.photo_cache
-# Cached Previews: 1,420 files
-# Total Disk Usage: 48,290 KB (47 MB)
-
-# Clear disk and RAM cache
-image_cli cache -d C:\PhotosDB --clear
+image_cli preview 42 -d C:\PhotosDB -o thumb_42.avif
 ```
 
 ---
@@ -331,6 +296,5 @@ image_cli list -d C:\PhotoArchive --camera-make "Apple" --limit 500 --json > app
 ## ⚡ Performance & Optimization Tips
 
 1. **Multithreading:** By default (`-t 0`), `image_cli scan` utilizes all available CPU logical cores via a worker queue. On modern 8+ core CPUs, scanning speeds exceed **200+ photos/second**.
-2. **Preview Pre-generation:** Use `--format avif` for thumbnail previews to achieve $30-50\%$ smaller thumbnail files compared to JPEG at equivalent visual quality.
-3. **Deduplication:** Repeatedly scanning the same directory will skip unchanged files automatically via streaming SHA-256 and path indexing without re-decoding images.
-4. **SQLite WAL Mode:** The database automatically benefits from composite multi-column indexing for sub-millisecond query responses across $100,000+$ photos.
+2. **Deduplication:** Repeatedly scanning the same directory will skip unchanged files automatically via streaming BLAKE3 hashing and path indexing without re-decoding images.
+3. **SQLite WAL Mode:** The database automatically benefits from composite multi-column indexing for sub-millisecond query responses across $100,000+$ photos.

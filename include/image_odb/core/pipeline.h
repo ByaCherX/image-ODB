@@ -1,8 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "image_odb/core/types.h"
 #include "image_odb/database.h"
-#include "image_odb/cache_manager.h"
 #include <filesystem>
 #include <functional>
 #include <vector>
@@ -16,7 +15,7 @@ using ProgressCallback = std::function<void(uint64_t processed, uint64_t total, 
  */
 class Pipeline {
 public:
-    Pipeline(db::Database& database, cache::CacheManager& cache_manager, std::filesystem::path working_dir);
+    Pipeline(db::Database& database, std::filesystem::path working_dir);
     ~Pipeline() = default;
 
     /**
@@ -37,7 +36,6 @@ public:
 
 private:
     db::Database& db_;
-    cache::CacheManager& cache_mgr_;
     std::filesystem::path working_dir_;
 };
 

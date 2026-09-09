@@ -119,7 +119,6 @@ void run_pipeline_tests() {
         ScanOptions scan_opt;
         scan_opt.group_bursts = true;
         scan_opt.recursive = true;
-        scan_opt.generate_previews = true;
         scan_opt.burst_time_window_seconds = 60; // wide enough for unit test filesystem timestamps
         scan_opt.burst_max_hamming_distance = 10;
 

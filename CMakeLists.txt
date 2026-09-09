@@ -40,9 +40,6 @@ add_library(image_odb
     src/jpeg_codec.cpp
     src/similarity_engine.cpp
     src/database.cpp
-    src/lru_cache.cpp
-    src/disk_cache.cpp
-    src/cache_manager.cpp
     src/phash.cpp
     src/thumbhash.cpp
 )

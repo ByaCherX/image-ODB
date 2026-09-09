@@ -26,15 +26,6 @@ enum class ImageFormat {
     BMP
 };
 
-/**
- * @brief Cache operating mode controlling RAM LRU and Disk thumbnail cache behavior.
- */
-enum class CacheMode {
-    ALL,       /**< Both RAM LRU and Disk thumbnail cache enabled (default). */
-    DISK_ONLY, /**< Only Disk thumbnail cache enabled (.photo_cache), RAM LRU bypassed. */
-    RAM_ONLY,  /**< Only in-memory RAM LRU cache enabled, Disk cache bypassed. */
-    NONE       /**< All caching disabled (no disk I/O, no RAM LRU). */
-};
 
 /**
  * @brief In-memory uncompressed pixel memory layouts, channel configurations, and data representations.
@@ -285,8 +276,6 @@ struct ScanOptions {
     uint32_t burst_time_window_seconds{3}; /**< Maximum elapsed time in seconds between consecutive shots to qualify as a burst. Default: 3s. */
     uint32_t burst_max_hamming_distance{5}; /**< Maximum Hamming distance between pHashes to qualify as the same burst scene. Default: 5. */
     bool recursive{true}; /**< Recursively traverse nested subdirectories during file discovery. Default: true. */
-    bool generate_previews{true}; /**< Generate and cache downscaled AVIF thumbnail previews during ingestion. Default: true. */
-    CacheMode cache_mode{CacheMode::ALL}; /**< Cache policy for preview caching during scan. Default: ALL. */
     bool convert_to_avif{false}; /**< Convert discovered non-AVIF images to AVIF format during ingestion. */
     EncodeOptions convert_options{}; /**< Encoding options when convert_to_avif is active. */
     bool delete_source{false}; /**< Delete original source file after converting to AVIF. */
@@ -304,7 +293,6 @@ struct ConvertOptions {
     ImageFormat target_format{ImageFormat::AVIF};
     EncodeOptions encode_options{};
     bool delete_source{false};
-    CacheMode cache_mode{CacheMode::ALL};
     std::filesystem::path output_directory;
 };
 

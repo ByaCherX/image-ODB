@@ -20,8 +20,7 @@
    - [6. Exception-Safe Codec Architecture & Format Conversion](#6-exception-safe-codec-architecture--format-conversion)
    - [7. Smart Capture Date Fallback Chain](#7-smart-capture-date-fallback-chain)
    - [8. Relational Metadata Storage (SQLiteCpp)](#8-relational-metadata-storage-sqlitecpp)
-   - [9. Configurable Multi-Tier Cache Hierarchy (RAM LRU + Disk)](#9-configurable-multi-tier-cache-hierarchy-ram-lru--disk)
-   - [10. Unified Colored Logging Subsystem (spdlog)](#10-unified-colored-logging-subsystem-spdlog)
+   - [9. Unified Colored Logging Subsystem (spdlog)](#9-unified-colored-logging-subsystem-spdlog)
 3. [Architecture & Data Flow](#-architecture--data-flow)
 4. [C++ API Embedding Guide](#-c-api-embedding-guide)
 5. [CLI Tool Quick Start (`image_cli`)](#-cli-tool-quick-start-image_cli)
@@ -37,7 +36,6 @@ Managing tens of thousands of high-resolution digital camera photos presents maj
 1. **Burst Shot Storage Bloat:** Continuous shooting modes generate 5–30 nearly identical RAW/JPEG images per action sequence, wasting gigabytes of disk space.
 2. **Metadata Fragmentation & Missing EXIF:** Camera models, lens optics, exposure parameters, and GPS tags are buried in diverse EXIF formats, while many photos lack EXIF timestamps entirely.
 3. **Format Inefficiencies:** Archiving mixed JPEG/PNG collections without a seamless way to modernize them to AVIF containers with embedded thumbnails.
-4. **Cache & Resource Control:** Inflexible thumbnail preview generation that can exhaust disk space or RAM in CLI-heavy pipelines.
 
 **`image-ODB` solves these problems by:**
 * Compressing burst sequences into a single standard **AVIF multi-frame container** using **I-Frame + P-Frame temporal prediction** (saving **80–90% disk space** while retaining the ability to extract any individual frame with zero quality loss).
@@ -46,7 +44,6 @@ Managing tens of thousands of high-resolution digital camera photos presents maj
 * Ingesting dates reliably via a **3-tier date fallback chain** (EXIF $\to$ Filename regex pattern $\to$ Filesystem modification timestamp).
 * Deduplicating files at memory-speed using hardware-accelerated **BLAKE3 cryptographic hashing**.
 * Storing **27 optical and exposure attributes** in an indexed, relational **SQLite database** with foreign key cascades.
-* Providing a **Configurable Cache Hierarchy** (`CacheMode::ALL`, `DISK_ONLY`, `RAM_ONLY`, `NONE`) to tailor memory and disk consumption to any environment.
 * Providing a **Centralized Logger** with colored console sinks and runtime `--loglevel` control for full pipeline observability.
 
 ---
@@ -64,18 +61,15 @@ flowchart TD
         C --> D3["Bitmap Decoding (libjpeg-turbo / libavif)"]
         D3 --> D4["64-bit DCT pHash Calculation"]
         D3 --> D5["~25-Byte ThumbHash Base64 Encoding"]
-        D3 --> D6["Aspect-Fit Preview Thumbnail Generation"]
     end
     
-    D1 & D2 & D4 & D5 & D6 --> E{"--group-bursts Enabled?"}
+    D1 & D2 & D4 & D5 --> E{"--group-bursts Enabled?"}
     
     E -- Yes --> F["Stage 3: SimilarityEngine Cluster Detection (Time Delta <= 3s & Hamming <= 5)"]
     F --> G["Stage 4: AvifCodec Inter-Frame Sequence Encoding (Frame 0: I-Frame, Frames 1..N-1: P-Frames)"]
     
     E -- No --> H["Stage 5: Atomic Batch Transaction (SQLite insert_photos_batch)"]
     G --> H
-    
-    H --> I["Two-Tier Cache Manager (.photo_cache/previews + RAM LRU)"]
 ```
 
 ---
@@ -200,39 +194,13 @@ The database layer ([`src/database.cpp`](src/database.cpp)) uses SQLite with `PR
 
 ---
 
-### 9. Configurable Multi-Tier Cache Hierarchy (RAM LRU + Disk)
-
-Preview resolution flows through three tiers ([`src/cache_manager.cpp`](src/cache_manager.cpp), [`src/lru_cache.cpp`](src/lru_cache.cpp), [`src/disk_cache.cpp`](src/disk_cache.cpp)):
-
-```text
-Request Preview(photo_id)
-       │
-       ├──► 1. Tier-1: In-Memory LRU RAM Cache (Fastest, Mutex Protected)
-       │         └─ HIT: Return ImageBuffer (< 0.1 ms)
-       │
-       ├──► 2. Tier-2: Disk Preview Cache (.photo_cache/previews/)
-       │         └─ HIT: Decode .avif/.jpg thumbnail, store in RAM, return (~ 2 ms)
-       │
-       └──► 3. Tier-3: Source File Synthesis
-                 └─ MISS: Decode full image, resize aspect-fit (500px),
-                          save to disk cache, populate RAM, return (~ 25 ms)
-```
-
-#### Cache Modes (`--cache`):
-* `all` (Default): Both RAM LRU and `.photo_cache/` disk storage active for maximal responsiveness.
-* `disk`: Disables RAM LRU memory caching, saving memory for low-RAM CLI and daemon workflows.
-* `ram`: Operates entirely in volatile RAM without generating any `.photo_cache/` files on disk.
-* `none`: Completely disables preview caching for minimum I/O overhead.
-
----
-
-### 10. Unified Colored Logging Subsystem (`spdlog`)
+### 9. Unified Colored Logging Subsystem (`spdlog`)
 
 `image-ODB` provides a centralized logging architecture ([`include/image_odb/logger.h`](include/image_odb/logger.h), [`src/logger.cpp`](src/logger.cpp)):
 
 * **Colored Console Output:** Uses `spdlog::sinks::stdout_color_sink_mt` with timestamp pattern `[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v`.
 * **Runtime Configurable:** Configurable programmatically via `image_odb::Logger::configure_with(...)` or via CLI `--loglevel=["trace"|"debug"|"info"|"warn"|"error"|"critical"|"off"]` and `-v, --verbose`.
-* **Subsystem Tracing:** High-granularity `spdlog::debug` statements across Engine, Pipeline, Codecs, SQLite database operations, similarity clustering, and cache transactions.
+* **Subsystem Tracing:** High-granularity `spdlog::debug` statements across Engine, Pipeline, Codecs, SQLite database operations, and similarity clustering.
 
 ---
 
@@ -249,7 +217,6 @@ graph LR
         Engine["image_odb::Engine"]
         Pipeline["image_odb::core::Pipeline"]
         DB["image_odb::Database"]
-        CacheMgr["image_odb::cache::CacheManager"]
         SimEngine["image_odb::detector::SimilarityEngine"]
         Codec["image_odb::codec::ImageCodec"]
         PHash["image_odb::hash::PHash"]
@@ -259,7 +226,6 @@ graph LR
     
     subgraph "Storage & Filesystem"
         SQLiteFile[("photos.db (SQLite)")]
-        DiskCacheDir[(".photo_cache/previews/")]
         BurstFiles[("bursts/*.avif")]
     end
     
@@ -267,7 +233,6 @@ graph LR
     CLI --> Engine
     Engine --> Pipeline
     Engine --> DB
-    Engine --> CacheMgr
     
     Pipeline --> Exif
     Pipeline --> Codec
@@ -277,7 +242,6 @@ graph LR
     Pipeline --> DB
     
     DB --> SQLiteFile
-    CacheMgr --> DiskCacheDir
     Codec --> BurstFiles
 ```
 
@@ -335,7 +299,7 @@ int main() {
                   << photo.camera.make << " " << photo.camera.model 
                   << " | " << photo.file_path.string() << "\n";
 
-        // Fetch AVIF thumbnail preview from two-tier cache
+        // Fetch thumbnail preview synthesized on the fly
         auto preview = engine.get_preview(photo.id);
         if (preview.has_value()) {
             std::cout << "  Preview bitmap: " << preview->width << "x" << preview->height << "\n";
@@ -362,8 +326,8 @@ image_cli image photo.jpg -o photo.avif --encode -q 85 -s 6 --embed-thumb
 # 3. Decode AVIF to JPEG
 image_cli image photo.avif -o photo.jpg --decode -q 90
 
-# 4. Scan directory with automatic burst clustering, on-the-fly AVIF conversion, and disk-only cache
-image_cli scan -d D:\DCIM -w C:\PhotosDB --group-bursts --convert --delete-source --cache disk
+# 4. Scan directory with automatic burst clustering and on-the-fly AVIF conversion
+image_cli scan -d D:\DCIM -w C:\PhotosDB --group-bursts --convert --delete-source
 
 # 5. Filter photos (Tabular view)
 image_cli list -d C:\PhotosDB --camera-make Sony --lens "24-70mm" --limit 10
@@ -374,8 +338,8 @@ image_cli list -d C:\PhotosDB --burst-only --json > bursts.json
 # 7. Extract a specific frame from a multi-frame AVIF container
 image_cli extract C:\PhotosDB\bursts\burst_1a2b.avif -f 1 -o best_frame.jpg
 
-# 8. Inspect or clear cache
-image_cli cache -d C:\PhotosDB --clear
+# 8. Retrieve and export on-the-fly photo preview
+image_cli preview 1 -d C:\PhotosDB -o thumb_1.avif
 ```
 
 ---

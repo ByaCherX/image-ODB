@@ -15,7 +15,6 @@ int handle_scan(const std::string& workspace_dir,
                 bool group_bursts,
                 uint32_t threads,
                 bool recursive,
-                bool generate_previews,
                 uint32_t burst_time,
                 uint32_t burst_dist,
                 bool convert_to_avif,
@@ -26,7 +25,6 @@ int handle_scan(const std::string& workspace_dir,
                 int convert_depth,
                 const std::string& convert_out_dir,
                 bool delete_source,
-                const std::string& cache_mode_str,
                 bool embed_thumb) {
     Engine engine(workspace_dir);
     engine.initialize_workspace();
@@ -34,16 +32,9 @@ int handle_scan(const std::string& workspace_dir,
     ScanOptions options;
     options.group_bursts = group_bursts;
     options.recursive = recursive;
-    options.generate_previews = generate_previews;
     options.max_threads = threads;
     options.burst_time_window_seconds = burst_time;
     options.burst_max_hamming_distance = burst_dist;
-
-    // Cache mode
-    if (cache_mode_str == "disk") options.cache_mode = CacheMode::DISK_ONLY;
-    else if (cache_mode_str == "ram" || cache_mode_str == "memory") options.cache_mode = CacheMode::RAM_ONLY;
-    else if (cache_mode_str == "none" || cache_mode_str == "off") options.cache_mode = CacheMode::NONE;
-    else options.cache_mode = CacheMode::ALL;
 
     // Convert options
     options.convert_to_avif = convert_to_avif;
@@ -69,8 +60,6 @@ int handle_scan(const std::string& workspace_dir,
     std::cout << "Scanning directory: " << scan_dir << "\n";
     std::cout << "Parameters: [threads=" << (threads == 0 ? "auto" : std::to_string(threads))
               << ", group_bursts=" << (group_bursts ? "yes" : "no")
-              << ", previews=" << (generate_previews ? "avif" : "none")
-              << ", cache=" << cache_mode_str
               << ", convert=" << (convert_to_avif ? "yes" : "no") << "]\n";
 
     uint64_t count = engine.scan_directory(scan_dir, options, [](uint64_t processed, uint64_t total, const std::string& cur) {
@@ -114,7 +103,6 @@ void register_scan_command(CLI::App& app) {
     static bool group_bursts = false;
     static uint32_t threads = 0;
     static bool no_recursive = false;
-    static bool no_previews = false;
     static uint32_t burst_time = 3;
     static uint32_t burst_dist = 5;
     static bool scan_convert = false;
@@ -125,15 +113,13 @@ void register_scan_command(CLI::App& app) {
     static int scan_conv_depth = 8;
     static std::string scan_conv_out_dir = "";
     static bool scan_delete_source = false;
-    static std::string scan_cache_mode = "all";
     static bool scan_embed_thumb = false;
 
     scan_cmd->add_option("-d,--dir", scan_dir, "Directory containing photos to scan")->default_val(".");
-    scan_cmd->add_option("-w,--workspace", scan_ws, "Workspace directory for database and cache (default: same as -d)");
+    scan_cmd->add_option("-w,--workspace", scan_ws, "Workspace directory for database (default: same as -d)");
     scan_cmd->add_flag("--group-bursts", group_bursts, "Detect and group burst shots into multi-frame AVIF");
     scan_cmd->add_option("-t,--threads", threads, "Number of worker threads (0 = auto)")->default_val(0);
     scan_cmd->add_flag("--no-recursive", no_recursive, "Do not scan subdirectories recursively");
-    scan_cmd->add_flag("--no-previews", no_previews, "Skip pre-generating thumbnail previews");
     scan_cmd->add_option("--burst-time", burst_time, "Max time difference between burst shots (seconds)")->default_val(3);
     scan_cmd->add_option("--burst-dist", burst_dist, "Max pHash Hamming distance for burst grouping")->default_val(5);
     scan_cmd->add_flag("--convert", scan_convert, "Convert scanned non-AVIF images to AVIF format");
@@ -144,14 +130,13 @@ void register_scan_command(CLI::App& app) {
     scan_cmd->add_option("--convert-depth", scan_conv_depth, "Conversion bit depth (8, 10, 12)")->default_val(8);
     scan_cmd->add_option("--convert-out-dir", scan_conv_out_dir, "Destination directory for converted AVIFs");
     scan_cmd->add_flag("--delete-source", scan_delete_source, "Delete source file after converting to AVIF");
-    scan_cmd->add_option("--cache", scan_cache_mode, "Cache mode (all, disk, ram, none)")->default_val("all");
     scan_cmd->add_flag("--embed-thumb", scan_embed_thumb, "Embed downscaled thumbnail inside converted AVIF");
 
     scan_cmd->callback([]() {
         const std::string& actual_ws = scan_ws.empty() ? scan_dir : scan_ws;
-        return handle_scan(actual_ws, scan_dir, group_bursts, threads, !no_recursive, !no_previews,
+        return handle_scan(actual_ws, scan_dir, group_bursts, threads, !no_recursive,
                            burst_time, burst_dist, scan_convert, scan_conv_quality, scan_conv_speed, scan_conv_lossless,
-                           scan_conv_subsampling, scan_conv_depth, scan_conv_out_dir, scan_delete_source, scan_cache_mode, scan_embed_thumb);
+                           scan_conv_subsampling, scan_conv_depth, scan_conv_out_dir, scan_delete_source, scan_embed_thumb);
     });
 }
 

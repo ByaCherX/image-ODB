@@ -206,15 +206,18 @@ inline std::optional<std::chrono::system_clock::time_point> parse_datestr(
     };
 
     for (const auto& entry : FORMATS) {
+        if (entry.has_time && s.size() < 12) continue;
+        if (!entry.has_time && s.size() > 10) continue;
+
         std::tm tm{};
-        if (!entry.has_time && end_of_day) {
-            tm.tm_hour = 23;
-            tm.tm_min = 59;
-            tm.tm_sec = 59;
-        }
         std::istringstream ss(s);
         ss >> std::get_time(&tm, entry.fmt);
         if (!ss.fail()) {
+            if (!entry.has_time && end_of_day) {
+                tm.tm_hour = 23;
+                tm.tm_min = 59;
+                tm.tm_sec = 59;
+            }
             std::string remaining;
             ss >> remaining;
             if (remaining.empty() || remaining == "Z" || remaining == "z") {

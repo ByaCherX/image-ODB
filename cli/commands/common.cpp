@@ -41,7 +41,6 @@ bool prompt_first_time_database_init(const std::string& workspace_dir) {
         }
         ScanOptions scan_opt;
         scan_opt.recursive = true;
-        scan_opt.generate_previews = true;
         uint64_t count = engine.scan_directory(workspace_dir, scan_opt, [](uint64_t processed, uint64_t total, const std::string& cur) {
             int percent = (total > 0) ? static_cast<int>((processed * 100) / total) : 0;
             std::string display_name = cur;

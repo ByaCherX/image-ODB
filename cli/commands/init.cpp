@@ -21,7 +21,7 @@ int handle_init(const std::string& directory) {
 } // namespace
 
 void register_init_command(CLI::App& app) {
-    auto* init_cmd = app.add_subcommand("init", "Initialize database (photos.db) and cache directory");
+    auto* init_cmd = app.add_subcommand("init", "Initialize database (photos.db)");
     init_cmd->fallthrough();
 
     static std::string init_dir = ".";

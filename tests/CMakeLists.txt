@@ -6,7 +6,6 @@ add_executable(test_image_odb
     test_avif.cpp
     test_db.cpp
     test_exif.cpp
-    test_cache.cpp
     test_pipeline.cpp
     test_convert.cpp
 )

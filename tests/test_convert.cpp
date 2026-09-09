@@ -28,7 +28,7 @@ image_odb::ImageBuffer make_test_image(uint32_t w, uint32_t h) {
 
 } // namespace
 
-void run_convert_and_cache_tests() {
+void run_convert_tests() {
     using namespace image_odb;
 
     const std::filesystem::path test_dir = "test_convert_workspace";
@@ -75,29 +75,7 @@ void run_convert_and_cache_tests() {
     std::string s4 = image_odb::util::format_iso8601(*dt4);
     assert(s4.find("2022-04-12") != std::string::npos);
 
-    // 3. Test CacheMode
-    {
-        cache::CacheManager cm(test_dir / "cache_test", 1024 * 1024);
-        cm.set_cache_mode(CacheMode::NONE);
-        assert(cm.cache_mode() == CacheMode::NONE);
-
-        auto img = make_test_image(80, 80);
-        cm.put_preview("key1", img);
-        assert(!cm.memory_cache().contains("key1"));
-        assert(!cm.disk_cache().has_preview("key1"));
-
-        cm.set_cache_mode(CacheMode::DISK_ONLY);
-        cm.put_preview("key2", img);
-        assert(!cm.memory_cache().contains("key2"));
-        assert(cm.disk_cache().has_preview("key2"));
-
-        cm.set_cache_mode(CacheMode::RAM_ONLY);
-        cm.put_preview("key3", img);
-        assert(cm.memory_cache().contains("key3"));
-        assert(!cm.disk_cache().has_preview("key3"));
-    }
-
-    // 4. Test Single File Convert (JPEG -> AVIF with embed_thumbnail, and AVIF -> JPEG)
+    // 3. Test Single File Convert (JPEG -> AVIF with embed_thumbnail, and AVIF -> JPEG)
     auto src_img = make_test_image(120, 120);
     auto raw_jpg_path = test_dir / "IMG_20240815_134520.jpg";
     EncodeOptions jpg_opts{.format = ImageFormat::JPEG, .quality = 90};
@@ -128,7 +106,7 @@ void run_convert_and_cache_tests() {
         assert(back_ok);
         assert(std::filesystem::exists(back_jpg_path) && std::filesystem::file_size(back_jpg_path) > 0);
 
-        // 5. Test Scan with --convert (convert_to_avif = true)
+        // 4. Test Scan with --convert (convert_to_avif = true)
         auto scan_input_dir = test_dir / "raw_photos";
         std::filesystem::create_directories(scan_input_dir);
         auto photo1_jpg = scan_input_dir / "IMG_20240815_134520.jpg";
@@ -142,7 +120,6 @@ void run_convert_and_cache_tests() {
         scan_opts.convert_options.speed = 9;
         scan_opts.convert_options.embed_thumbnail = true;
         scan_opts.delete_source = true;
-        scan_opts.cache_mode = CacheMode::ALL;
 
         [[maybe_unused]] uint64_t ingested = engine.scan_directory(scan_input_dir, scan_opts, nullptr);
         assert(ingested == 2);
@@ -162,7 +139,7 @@ void run_convert_and_cache_tests() {
             assert(p.capture_date.has_value()); // Date parsed from filename fallback!
         }
 
-        // 6. Test convert_photo_by_id
+        // 5. Test convert_photo_by_id
         if (!photos.empty()) {
             auto export_jpg = test_dir / "exported_photo.jpg";
             EncodeOptions exp_opt;
