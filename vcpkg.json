@@ -17,6 +17,8 @@
     "cli11",
     "spdlog",
     "blake3",
-    "libspng"
+    "libspng",
+    "libwebp",
+    "tiff"
   ]
 }

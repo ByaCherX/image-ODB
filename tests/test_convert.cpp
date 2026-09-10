@@ -54,10 +54,19 @@ void run_convert_tests() {
     assert(codec::ImageCodec::detect_format("document.pdf") == ImageFormat::UNKNOWN);
     assert(codec::ImageCodec::detect_format("program.exe") == ImageFormat::UNKNOWN);
     assert(codec::SUPPORTED_IMAGE_EXTENSIONS.size() == 10);
-    assert(codec::SUPPORTED_DECODE_EXTENSIONS.size() == 6);
+    assert(codec::SUPPORTED_DECODE_EXTENSIONS.size() == 9);
     assert(std::find(codec::SUPPORTED_DECODE_EXTENSIONS.begin(),
                      codec::SUPPORTED_DECODE_EXTENSIONS.end(),
                      ".png") != codec::SUPPORTED_DECODE_EXTENSIONS.end());
+    assert(std::find(codec::SUPPORTED_DECODE_EXTENSIONS.begin(),
+                     codec::SUPPORTED_DECODE_EXTENSIONS.end(),
+                     ".webp") != codec::SUPPORTED_DECODE_EXTENSIONS.end());
+    assert(std::find(codec::SUPPORTED_DECODE_EXTENSIONS.begin(),
+                     codec::SUPPORTED_DECODE_EXTENSIONS.end(),
+                     ".tif") != codec::SUPPORTED_DECODE_EXTENSIONS.end());
+    assert(std::find(codec::SUPPORTED_DECODE_EXTENSIONS.begin(),
+                     codec::SUPPORTED_DECODE_EXTENSIONS.end(),
+                     ".tiff") != codec::SUPPORTED_DECODE_EXTENSIONS.end());
 
     // 2. Test Filename Date Fallback Parsing
     auto dt1 = metadata::ExifReader::parse_date_from_filename("IMG_20240815_134520.jpg");
@@ -205,6 +214,118 @@ void run_convert_tests() {
         enc_png_to_avif.quality = 80;
         assert(engine.convert_file(sample_png_path, png_to_avif_path, enc_png_to_avif));
         assert(std::filesystem::exists(png_to_avif_path) && std::filesystem::file_size(png_to_avif_path) > 0);
+
+        // 7. Test WebP Decode Support via libwebp
+        const std::vector<uint8_t> tiny_webp = {
+            0x52, 0x49, 0x46, 0x46, 0x3c, 0x00, 0x00, 0x00,
+            0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20,
+            0x30, 0x00, 0x00, 0x00, 0xd0, 0x01, 0x00, 0x9d,
+            0x01, 0x2a, 0x01, 0x00, 0x01, 0x00, 0x01, 0x40,
+            0x26, 0x25, 0xa0, 0x02, 0x74, 0xba, 0x01, 0xf8,
+            0x00, 0x03, 0xb0, 0x00, 0xfe, 0xf2, 0xeb, 0x7f,
+            0xfc, 0xd8, 0x15, 0xcd, 0x73, 0xef, 0xf7, 0xff,
+            0xd2, 0xe0, 0xfd, 0x2e, 0x0f, 0xd2, 0xe0, 0xff,
+            0xd2, 0x90, 0x00, 0x00
+        };
+
+        assert(codec::ImageCodec::detect_format(tiny_webp) == ImageFormat::WEBP);
+
+        auto decoded_webp = codec::ImageCodec::decode_memory(tiny_webp);
+        assert(!decoded_webp.empty());
+        assert(decoded_webp.width == 1);
+        assert(decoded_webp.height == 1);
+        assert(decoded_webp.channels == 3);
+        assert(decoded_webp.format == PixelFormat::RGB8);
+        assert(decoded_webp.data.size() == 3);
+
+        // Test WebP decode with GRAY8 target format
+        DecodeOptions webp_gray_opt{.target_format = PixelFormat::GRAY8};
+        auto decoded_webp_gray = codec::ImageCodec::decode_memory(tiny_webp, "", webp_gray_opt);
+        assert(!decoded_webp_gray.empty());
+        assert(decoded_webp_gray.width == 1);
+        assert(decoded_webp_gray.height == 1);
+        assert(decoded_webp_gray.channels == 1);
+        assert(decoded_webp_gray.format == PixelFormat::GRAY8);
+        assert(decoded_webp_gray.data.size() == 1);
+
+        // Test WebP decode from file and conversion to AVIF
+        auto sample_webp_path = test_dir / "tiny.webp";
+        {
+            std::ofstream webp_out(sample_webp_path, std::ios::binary);
+            webp_out.write(reinterpret_cast<const char*>(tiny_webp.data()), static_cast<std::streamsize>(tiny_webp.size()));
+        }
+        auto file_decoded_webp = codec::ImageCodec::decode_file(sample_webp_path);
+        assert(!file_decoded_webp.empty());
+        assert(file_decoded_webp.width == 1);
+        assert(file_decoded_webp.height == 1);
+
+        auto webp_to_avif_path = test_dir / "from_webp.avif";
+        EncodeOptions enc_webp_to_avif;
+        enc_webp_to_avif.format = ImageFormat::AVIF;
+        enc_webp_to_avif.quality = 80;
+        assert(engine.convert_file(sample_webp_path, webp_to_avif_path, enc_webp_to_avif));
+        assert(std::filesystem::exists(webp_to_avif_path) && std::filesystem::file_size(webp_to_avif_path) > 0);
+
+        // 8. Test TIFF Decode Support via libtiff
+        const std::vector<uint8_t> tiny_tiff = {
+            0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+            0x0a, 0x00, 0x00, 0x01, 0x04, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01,
+            0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x02, 0x01, 0x03, 0x00, 0x03, 0x00,
+            0x00, 0x00, 0x86, 0x00, 0x00, 0x00, 0x03, 0x01,
+            0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x06, 0x01, 0x03, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x11, 0x01,
+            0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x8c, 0x00,
+            0x00, 0x00, 0x21, 0x01, 0x03, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x22, 0x01,
+            0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x23, 0x01, 0x04, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x28, 0x01,
+            0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
+            0x08, 0x00, 0x08, 0x00, 0xff, 0x00, 0x00
+        };
+
+        assert(codec::ImageCodec::detect_format(tiny_tiff) == ImageFormat::TIFF);
+
+        auto decoded_tiff = codec::ImageCodec::decode_memory(tiny_tiff);
+        assert(!decoded_tiff.empty());
+        assert(decoded_tiff.width == 1);
+        assert(decoded_tiff.height == 1);
+        assert(decoded_tiff.channels == 3);
+        assert(decoded_tiff.format == PixelFormat::RGB8);
+        assert(decoded_tiff.data.size() == 3);
+        assert(decoded_tiff.data[0] == 255); // Red
+
+        // Test TIFF decode with GRAY8 target format
+        DecodeOptions tiff_gray_opt{.target_format = PixelFormat::GRAY8};
+        auto decoded_tiff_gray = codec::ImageCodec::decode_memory(tiny_tiff, "", tiff_gray_opt);
+        assert(!decoded_tiff_gray.empty());
+        assert(decoded_tiff_gray.width == 1);
+        assert(decoded_tiff_gray.height == 1);
+        assert(decoded_tiff_gray.channels == 1);
+        assert(decoded_tiff_gray.format == PixelFormat::GRAY8);
+        assert(decoded_tiff_gray.data.size() == 1);
+
+        // Test TIFF decode from file and conversion to AVIF
+        auto sample_tiff_path = test_dir / "tiny.tiff";
+        {
+            std::ofstream tiff_out(sample_tiff_path, std::ios::binary);
+            tiff_out.write(reinterpret_cast<const char*>(tiny_tiff.data()), static_cast<std::streamsize>(tiny_tiff.size()));
+        }
+        auto file_decoded_tiff = codec::ImageCodec::decode_file(sample_tiff_path);
+        assert(!file_decoded_tiff.empty());
+        assert(file_decoded_tiff.width == 1);
+        assert(file_decoded_tiff.height == 1);
+
+        auto tiff_to_avif_path = test_dir / "from_tiff.avif";
+        EncodeOptions enc_tiff_to_avif;
+        enc_tiff_to_avif.format = ImageFormat::AVIF;
+        enc_tiff_to_avif.quality = 80;
+        assert(engine.convert_file(sample_tiff_path, tiff_to_avif_path, enc_tiff_to_avif));
+        assert(std::filesystem::exists(tiff_to_avif_path) && std::filesystem::file_size(tiff_to_avif_path) > 0);
     }
 
     // Clean up after engine is closed

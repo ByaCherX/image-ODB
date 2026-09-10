@@ -25,6 +25,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
+find_package(WebP CONFIG REQUIRED)
+find_package(TIFF REQUIRED)
 
 if(IMAGE_ODB_BUILD_CLI)
     find_package(CLI11 CONFIG REQUIRED)
@@ -40,6 +42,8 @@ add_library(image_odb
     src/avif_codec.cpp
     src/jpeg_codec.cpp
     src/png_codec.cpp
+    src/webp_codec.cpp
+    src/tiff_codec.cpp
     src/similarity_engine.cpp
     src/database.cpp
     src/phash.cpp
@@ -65,6 +69,8 @@ target_link_libraries(image_odb
         TinyEXIF::TinyEXIF
         BLAKE3::blake3
         $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>
+        WebP::webpdecoder
+        TIFF::TIFF
 )
 
 # Compiler specific flags and definitions

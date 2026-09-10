@@ -2,6 +2,8 @@
 #include "image_odb/jpeg_codec.h"
 #include "image_odb/avif_codec.h"
 #include "image_odb/png_codec.h"
+#include "image_odb/webp_codec.h"
+#include "image_odb/tiff_codec.h"
 #include "image_odb/util.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -131,6 +133,10 @@ ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, std::string
             return AvifCodec::decode_memory(data, options);
         case ImageFormat::PNG:
             return PngCodec::decode_memory(data, options);
+        case ImageFormat::WEBP:
+            return WebpCodec::decode_memory(data, options);
+        case ImageFormat::TIFF:
+            return TiffCodec::decode_memory(data, options);
         default:
             return {};
     }
