@@ -49,7 +49,7 @@ public:
      * @return Decoded ImageBuffer, or empty buffer on failure.
      */
     static ImageBuffer decode_memory(std::span<const uint8_t> data,
-                                     const std::string& hint_format = "",
+                                     std::string_view hint_format = "",
                                      const DecodeOptions& options = {});
 
     /**
@@ -84,6 +84,17 @@ public:
                                   const EncodeOptions& options = {});
 
     /**
+     * @brief Extract a specific frame from an image container in memory.
+     * @param data In-memory byte span containing image container.
+     * @param frame_index Zero-based frame index.
+     * @param options Decoding options.
+     * @return Decoded ImageBuffer.
+     */
+    static ImageBuffer extract_frame(std::span<const uint8_t> data,
+                                     uint32_t frame_index = 0,
+                                     const DecodeOptions& options = {});
+
+    /**
      * @brief Extract a specific frame from an image or container file on disk.
      * @param file_path File path to image container.
      * @param frame_index Zero-based frame index.
@@ -93,6 +104,13 @@ public:
     static ImageBuffer extract_frame(const std::filesystem::path& file_path,
                                      uint32_t frame_index = 0,
                                      const DecodeOptions& options = {});
+
+    /**
+     * @brief Retrieve frame count from an image container in memory.
+     * @param data In-memory byte span containing image container.
+     * @return Total frame count.
+     */
+    static uint32_t get_frame_count(std::span<const uint8_t> data);
 
     /**
      * @brief Retrieve frame count from an image container file on disk.
@@ -111,7 +129,7 @@ public:
     static ImageBuffer resize_aspect_fit(const ImageBuffer& src, uint32_t max_width, uint32_t max_height);
 
     /**
-     * @brief Detect image container format from file extension.
+     * @brief Detect image container format from file path or filename.
      */
     static ImageFormat detect_format(const std::filesystem::path& file_path);
 
