@@ -3,6 +3,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace {
@@ -53,6 +54,10 @@ void run_convert_tests() {
     assert(codec::ImageCodec::detect_format("document.pdf") == ImageFormat::UNKNOWN);
     assert(codec::ImageCodec::detect_format("program.exe") == ImageFormat::UNKNOWN);
     assert(codec::SUPPORTED_IMAGE_EXTENSIONS.size() == 10);
+    assert(codec::SUPPORTED_DECODE_EXTENSIONS.size() == 6);
+    assert(std::find(codec::SUPPORTED_DECODE_EXTENSIONS.begin(),
+                     codec::SUPPORTED_DECODE_EXTENSIONS.end(),
+                     ".png") != codec::SUPPORTED_DECODE_EXTENSIONS.end());
 
     // 2. Test Filename Date Fallback Parsing
     auto dt1 = metadata::ExifReader::parse_date_from_filename("IMG_20240815_134520.jpg");
@@ -148,6 +153,58 @@ void run_convert_tests() {
             assert(engine.convert_photo_by_id(photos[0].id, export_jpg, exp_opt));
             assert(std::filesystem::exists(export_jpg));
         }
+
+        // 6. Test PNG Decode Support via libspng
+        // Minimal valid 1x1 Red RGB PNG
+        const std::vector<uint8_t> tiny_png = {
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG Signature
+            0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+            0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, // 8-bit RGB, CRC
+            0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, // IDAT
+            0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, // compressed data
+            0x18, 0xdd, 0x8d, 0xb0, // CRC
+            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82 // IEND
+        };
+
+        assert(codec::ImageCodec::detect_format(tiny_png) == ImageFormat::PNG);
+
+        auto decoded_png = codec::ImageCodec::decode_memory(tiny_png);
+        assert(!decoded_png.empty());
+        assert(decoded_png.width == 1);
+        assert(decoded_png.height == 1);
+        assert(decoded_png.channels == 3);
+        assert(decoded_png.format == PixelFormat::RGB8);
+        assert(decoded_png.data.size() == 3);
+        assert(decoded_png.data[0] == 255); // Red
+
+        // Test PNG decode with GRAY8 target format
+        DecodeOptions gray_opt{.target_format = PixelFormat::GRAY8};
+        auto decoded_gray = codec::ImageCodec::decode_memory(tiny_png, "", gray_opt);
+        assert(!decoded_gray.empty());
+        assert(decoded_gray.width == 1);
+        assert(decoded_gray.height == 1);
+        assert(decoded_gray.channels == 1);
+        assert(decoded_gray.format == PixelFormat::GRAY8);
+        assert(decoded_gray.data.size() == 1);
+
+        // Test PNG decode from file and conversion to AVIF
+        auto sample_png_path = test_dir / "tiny.png";
+        {
+            std::ofstream png_out(sample_png_path, std::ios::binary);
+            png_out.write(reinterpret_cast<const char*>(tiny_png.data()), static_cast<std::streamsize>(tiny_png.size()));
+        }
+        auto file_decoded = codec::ImageCodec::decode_file(sample_png_path);
+        assert(!file_decoded.empty());
+        assert(file_decoded.width == 1);
+        assert(file_decoded.height == 1);
+
+        auto png_to_avif_path = test_dir / "from_png.avif";
+        EncodeOptions enc_png_to_avif;
+        enc_png_to_avif.format = ImageFormat::AVIF;
+        enc_png_to_avif.quality = 80;
+        assert(engine.convert_file(sample_png_path, png_to_avif_path, enc_png_to_avif));
+        assert(std::filesystem::exists(png_to_avif_path) && std::filesystem::file_size(png_to_avif_path) > 0);
     }
 
     // Clean up after engine is closed

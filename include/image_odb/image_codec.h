@@ -16,8 +16,8 @@ inline constexpr std::array<std::string_view, 10> SUPPORTED_IMAGE_EXTENSIONS = {
 /**
  * @brief Supported image file extensions that currently support direct decoding.
  */
-inline constexpr std::array<std::string_view, 5> SUPPORTED_DECODE_EXTENSIONS = {
-    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs"
+inline constexpr std::array<std::string_view, 6> SUPPORTED_DECODE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".avif", ".avifs", ".png"
 };
 
 /**

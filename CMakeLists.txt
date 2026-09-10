@@ -24,6 +24,7 @@ find_package(TinyEXIF CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
+find_package(SPNG CONFIG REQUIRED)
 
 if(IMAGE_ODB_BUILD_CLI)
     find_package(CLI11 CONFIG REQUIRED)
@@ -38,6 +39,7 @@ add_library(image_odb
     src/image_codec.cpp
     src/avif_codec.cpp
     src/jpeg_codec.cpp
+    src/png_codec.cpp
     src/similarity_engine.cpp
     src/database.cpp
     src/phash.cpp
@@ -62,6 +64,7 @@ target_link_libraries(image_odb
         SQLiteCpp
         TinyEXIF::TinyEXIF
         BLAKE3::blake3
+        $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>
 )
 
 # Compiler specific flags and definitions

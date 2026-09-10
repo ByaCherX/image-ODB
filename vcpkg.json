@@ -16,6 +16,7 @@
     "nlohmann-json",
     "cli11",
     "spdlog",
-    "blake3"
+    "blake3",
+    "libspng"
   ]
 }

@@ -1,6 +1,7 @@
 #include "image_odb/image_codec.h"
 #include "image_odb/jpeg_codec.h"
 #include "image_odb/avif_codec.h"
+#include "image_odb/png_codec.h"
 #include "image_odb/util.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -97,6 +98,7 @@ ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::
         std::transform(h.begin(), h.end(), h.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
         if (h == ".jpg" || h == ".jpeg" || h == ".jfif" || h == "jpg" || h == "jpeg") fmt = ImageFormat::JPEG;
         else if (h == ".avif" || h == ".avifs" || h == "avif") fmt = ImageFormat::AVIF;
+        else if (h == ".png" || h == "png") fmt = ImageFormat::PNG;
     }
 
     switch (fmt) {
@@ -104,6 +106,8 @@ ImageBuffer ImageCodec::decode_memory(std::span<const uint8_t> data, const std::
             return JpegCodec::decode_memory(data, options);
         case ImageFormat::AVIF:
             return AvifCodec::decode_memory(data, options);
+        case ImageFormat::PNG:
+            return PngCodec::decode_memory(data, options);
         default:
             return {};
     }

@@ -27,6 +27,7 @@
 #include "image_odb/image_codec.h"
 #include "image_odb/avif_codec.h"
 #include "image_odb/jpeg_codec.h"
+#include "image_odb/png_codec.h"
 #include "image_odb/similarity_engine.h"
 #include "image_odb/database.h"
 #include "image_odb/phash.h"
