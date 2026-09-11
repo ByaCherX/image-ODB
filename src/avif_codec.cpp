@@ -3,6 +3,7 @@
 #include <avif/avif.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <thread>
 
 namespace image_odb::codec {
 
@@ -105,6 +106,14 @@ avifImage* avifFromBuffer(const ImageBuffer& img, const EncodeOptions& options) 
     return avif;
 }
 
+int resolve_encoder_threads(int requested_threads) {
+    if (requested_threads > 0) {
+        return requested_threads;
+    }
+    unsigned int hw = std::thread::hardware_concurrency();
+    return (hw > 0) ? static_cast<int>(hw) : 1;
+}
+
 } // namespace
 
 std::vector<uint8_t> AvifCodec::encode_memory(const ImageBuffer& image, const EncodeOptions& options) {
@@ -127,6 +136,7 @@ std::vector<uint8_t> AvifCodec::encode_memory(const ImageBuffer& image, const En
         encoder->qualityAlpha = std::clamp(options.quality, 1, 100);
     }
     encoder->speed = std::clamp(options.speed, 0, 10);
+    encoder->maxThreads = resolve_encoder_threads(options.threads);
 
     //---------------------------------------------------------------------------------------+
     // The encoder to be used for the AVIF image is determined here. AOM is used by default; |
@@ -172,6 +182,7 @@ std::vector<uint8_t> AvifCodec::encode_burst_sequence(const std::vector<ImageBuf
         encoder->qualityAlpha = std::clamp(options.quality, 1, 100);
     }
     encoder->speed = std::clamp(options.speed, 0, 10);
+    encoder->maxThreads = resolve_encoder_threads(options.threads);
     encoder->timescale = 1; // 1 frame per duration unit
 
     bool all_ok = true;
@@ -222,6 +233,7 @@ ImageBuffer AvifCodec::extract_frame(std::span<const uint8_t> data,
 
     avifDecoder* decoder = avifDecoderCreate();
     if (!decoder) return buffer;
+    decoder->codecChoice = AVIF_CODEC_CHOICE_DAV1D;
     
 /*helper*/
 #define avifResultError(result, spdlog_message)                                \

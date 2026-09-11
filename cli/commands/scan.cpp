@@ -45,6 +45,7 @@ int handle_scan(const std::string& workspace_dir,
         options.convert_options.lossless = convert_lossless;
         options.convert_options.bit_depth = convert_depth;
         options.convert_options.embed_thumbnail = embed_thumb;
+        options.convert_options.threads = static_cast<int>(threads);
 
         if (convert_subsampling == "444") options.convert_options.subsampling = ChromaSubsampling::YUV444;
         else if (convert_subsampling == "422") options.convert_options.subsampling = ChromaSubsampling::YUV422;

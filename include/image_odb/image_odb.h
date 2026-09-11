@@ -14,13 +14,13 @@
 #pragma once
 
 #define IMAGE_ODB_MAJOR_VERSION  0
-#define IMAGE_ODB_MINOR_VERSION  2
+#define IMAGE_ODB_MINOR_VERSION  3
 #define IMAGE_ODB_PATCH_VERSION  0
 #define IMAGE_ODB_VERSION_NUMBER (\
     IMAGE_ODB_MAJOR_VERSION * 1000000 + \
     IMAGE_ODB_MINOR_VERSION * 1000 + \
     IMAGE_ODB_PATCH_VERSION)
-#define IMAGE_ODB_VERSION        "0.2.0"
+#define IMAGE_ODB_VERSION        "0.3.0"
 
 #include "image_odb/core/types.h"
 #include "image_odb/exif_reader.h"

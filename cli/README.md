@@ -91,6 +91,7 @@ image_cli image <input> [options]
 | `--subsampling` | `string` | `420` | Chroma subsampling (`420`, `422`, `444`, `400`). |
 | `--depth, --bit-depth` | `int` | `8` | Bit depth per channel (`8`, `10`, `12`). |
 | `--embed-thumb` | `flag` | `false` | Generate and attach downscaled preview thumbnail inside AVIF container. |
+| `-t, --threads` | `int` | `0` (Auto) | Number of worker threads for encoding (`0` = all CPU cores). |
 
 #### Examples:
 ```bash

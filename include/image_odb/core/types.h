@@ -139,6 +139,7 @@ struct EncodeOptions {
     bool lossless{false}; /**< when true, enables lossless compression mode */
     bool embed_thumbnail{false}; /**< when true, downscales and embeds thumbnail inside the AVIF container */
     uint32_t thumbnail_dimension{256}; /**< Maximum bounding box dimension for embedded thumbnail */
+    int threads{0}; /**< Number of worker threads for encoding (0 = automatic system thread count) */
 };
 
 /**

@@ -6,6 +6,11 @@
 
 **`image-ODB`** is a modern, high-throughput C++20 photo library (`image_odb`) and CLI utility (`image_cli`) designed for large-scale photo indexing, visual similarity search, optical EXIF analysis, and extreme storage reduction using **AVIF multi-frame inter-frame sequence compression**.
 
+> [!Important]
+> **`image-ODB` is not a database server.** It is a **lightweight, embedded, single-file SQLite database** with a C++ API and CLI tool for managing large photo collections on local filesystems. It is not production-ready; it is in the **experimental** development stage.
+
+![NTC Decoding Pipeline](.github/overview.avif)
+
 ---
 
 ## 📑 Table of Contents

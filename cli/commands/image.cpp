@@ -18,7 +18,8 @@ int handle_image(const std::string& input_file,
                  bool lossless,
                  const std::string& subsampling_str,
                  int bit_depth,
-                 bool embed_thumb) {
+                 bool embed_thumb,
+                 int threads = 0) {
     if (!std::filesystem::exists(input_file)) {
         std::cerr << "Error: Input file does not exist: " << input_file << "\n";
         return 1;
@@ -52,6 +53,7 @@ int handle_image(const std::string& input_file,
         EncodeOptions enc_opts;
         enc_opts.format = ImageFormat::JPEG;
         enc_opts.quality = (quality > 0) ? quality : 85;
+        enc_opts.threads = threads;
 
         if (codec::ImageCodec::encode_file(img, out_p, enc_opts)) {
             std::cout << "Successfully decoded '" << input_file << "' -> '" << out_p.string() << "' (" 
@@ -79,6 +81,7 @@ int handle_image(const std::string& input_file,
         enc_opts.lossless = lossless;
         enc_opts.bit_depth = bit_depth;
         enc_opts.embed_thumbnail = embed_thumb;
+        enc_opts.threads = threads;
 
         if (subsampling_str == "444") enc_opts.subsampling = ChromaSubsampling::YUV444;
         else if (subsampling_str == "422") enc_opts.subsampling = ChromaSubsampling::YUV422;
@@ -111,6 +114,7 @@ void register_image_command(CLI::App& app) {
     static std::string img_subsampling = "420";
     static int img_depth = 8;
     static bool img_embed_thumb = false;
+    static int img_threads = 0;
 
     image_cmd->add_option("input", img_in, "Input image file path")->required();
     image_cmd->add_option("-o,--output", img_out, "Output destination image path");
@@ -122,9 +126,10 @@ void register_image_command(CLI::App& app) {
     image_cmd->add_option("--subsampling", img_subsampling, "Chroma subsampling (420, 422, 444, 400)")->default_val("420");
     image_cmd->add_option("--depth,--bit-depth", img_depth, "Bit depth (8, 10, 12)")->default_val(8);
     image_cmd->add_flag("--embed-thumb", img_embed_thumb, "Embed downscaled thumbnail inside AVIF");
+    image_cmd->add_option("-t,--threads", img_threads, "Number of worker threads (0 = auto / all CPU threads)")->default_val(0);
 
     image_cmd->callback([]() {
-        return handle_image(img_in, img_out, img_encode, img_decode, img_quality, img_speed, img_lossless, img_subsampling, img_depth, img_embed_thumb);
+        return handle_image(img_in, img_out, img_encode, img_decode, img_quality, img_speed, img_lossless, img_subsampling, img_depth, img_embed_thumb, img_threads);
     });
 }
 

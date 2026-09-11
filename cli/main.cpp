@@ -20,6 +20,21 @@
 #endif
 
 int main(int argc, char** argv) {
+// === HATA AYIKLAMA (DEBUG) MODU ===
+// İstediğiniz zaman 0 yaparak normal komut satırı moduna dönebilirsiniz
+#if 0
+    const char* debug_argv[] = {
+        "image_cli",
+        "image",
+        "C:\\Users\\kralk\\Pictures\\cat_jpeg.jpg",
+        "-o",
+        "C:\\Users\\kralk\\Pictures\\cat.avif"
+    };
+    argc = static_cast<int>(sizeof(debug_argv) / sizeof(debug_argv[0]));
+    argv = const_cast<char**>(debug_argv);
+#endif
+// ==================================
+
 #ifdef _WIN32
     // Ensure Windows console renders UTF-8 properly and supports ANSI escape codes
     SetConsoleOutputCP(CP_UTF8);

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(image_odb
-    VERSION 0.2.0
+    VERSION 0.3.0
     LANGUAGES C CXX
     DESCRIPTION "High-performance photo database and AVIF multi-frame archiving library & CLI tool"
 )
@@ -10,6 +10,12 @@ project(image_odb
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+if(ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
 
 # Option to build tests and CLI
 option(IMAGE_ODB_BUILD_CLI "Build image_cli command line utility" ON)
@@ -75,10 +81,22 @@ target_link_libraries(image_odb
 
 # Compiler specific flags and definitions
 if(MSVC)
-    target_compile_options(image_odb PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(image_odb PRIVATE 
+        /W4 /permissive- /utf-8
+        $<$<CONFIG:Release>:/O2 /Oi /Gy /Gw>
+    )
+    target_link_options(image_odb PRIVATE
+        $<$<CONFIG:Release>:/OPT:REF /OPT:ICF>
+    )
     target_compile_definitions(image_odb PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
 else()
-    target_compile_options(image_odb PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(image_odb PRIVATE 
+        -Wall -Wextra -Wpedantic
+        $<$<CONFIG:Release>:-O3 -ffunction-sections -fdata-sections>
+    )
+    target_link_options(image_odb PRIVATE
+        $<$<CONFIG:Release>:-Wl,--gc-sections>
+    )
 endif()
 
 # Subdirectories

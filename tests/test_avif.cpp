@@ -202,6 +202,28 @@ void run_avif_codec_tests() {
         throw std::runtime_error("EXIF metadata was lost during AVIF encode/decode");
     }
 
+    // Test 11: AVIF encoding with custom threads configuration
+    const auto avif_threads_path = temp_dir / "sample_threads.avif";
+    EncodeOptions thread_opts;
+    thread_opts.format = ImageFormat::AVIF;
+    thread_opts.quality = 75;
+    thread_opts.speed = 8;
+    thread_opts.threads = 2; // Explicitly set 2 threads
+    if (!ImageCodec::encode_file(original, avif_threads_path, thread_opts)) {
+        throw std::runtime_error("Failed to encode AVIF with threads = 2");
+    }
+    auto decoded_thread_avif = ImageCodec::decode_file(avif_threads_path);
+    if (decoded_thread_avif.empty() || decoded_thread_avif.width != 128 || decoded_thread_avif.height != 96) {
+        throw std::runtime_error("Failed to decode AVIF encoded with threads = 2");
+    }
+
+    // Explicit threads = 0 (auto-detect system threads)
+    thread_opts.threads = 0;
+    auto mem_thread_avif = AvifCodec::encode_memory(original, thread_opts);
+    if (mem_thread_avif.empty()) {
+        throw std::runtime_error("Failed to encode AVIF with threads = 0 (auto-detect)");
+    }
+
     // Clean up test files
     if (std::filesystem::exists(temp_dir)) {
         std::filesystem::remove_all(temp_dir);
