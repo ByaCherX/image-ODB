@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.0] - 2026-09-11
+
+### 🚀 Highlights & Features
+
+- **Multi-Format Codec Expansion (PNG, WebP, TIFF)**:
+  - Added full decoding support for **PNG** using `libspng` with in-memory parsing and conversion tests ([c451775](https://github.com/ByaCherX/image-ODB/commit/c451775)).
+  - Added decoding support for **WebP** via `libwebp` ([2da916e](https://github.com/ByaCherX/image-ODB/commit/2da916e)).
+  - Added decoding support for **TIFF** images via `libtiff` with custom memory-stream handling (`MemTiffStream`) ([2da916e](https://github.com/ByaCherX/image-ODB/commit/2da916e)).
+  - Expanded `SUPPORTED_DECODE_EXTENSIONS` with `.png`, `.webp`, `.tif`, and `.tiff`.
+- **Parallel & Accelerated AVIF Processing**:
+  - Implemented multi-threaded AVIF encoding with `threads` option in `EncodeOptions` (default `0` = auto system thread count) ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+  - Added `-t, --threads` CLI parameter to `image` command and forwarded thread configuration to `scan` convert pipeline ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+  - Explicitly selected `AVIF_CODEC_CHOICE_DAV1D` for high-throughput frame extraction and decoding ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+- **Codec & Image Processing Performance**:
+  - Optimized `resize_aspect_fit` with precomputed horizontal lookup tables (`lut_src_x`) to eliminate O(w×h) floating-point divisions, combined with row/pixel `memcpy` fast paths ([50c0fc0](https://github.com/ByaCherX/image-ODB/commit/50c0fc0)).
+  - Added `extract_frame` and `get_frame_count` overloads in `ImageCodec` for multi-frame AVIF containers ([50c0fc0](https://github.com/ByaCherX/image-ODB/commit/50c0fc0)).
+  - Optimized file I/O in `read_file_bytes` and refactored `encode_memory` using switch-case logic ([50c0fc0](https://github.com/ByaCherX/image-ODB/commit/50c0fc0)).
+
+### 🔄 Refactoring & Architecture Simplification
+
+- **Removed Cache Subsystem**:
+  - Removed `CacheManager`, `LRUCache`, and `DiskCache` implementations to eliminate cache overhead and simplify storage semantics ([4386aac](https://github.com/ByaCherX/image-ODB/commit/4386aac)).
+  - Removed `cache` CLI command and updated `preview` to generate previews dynamically on-demand ([4386aac](https://github.com/ByaCherX/image-ODB/commit/4386aac)).
+  - Streamlined `Engine` and `Pipeline` by eliminating cache manager dependencies ([4386aac](https://github.com/ByaCherX/image-ODB/commit/4386aac)).
+
+### 📦 Build & Tooling Enhancements
+
+- Added Interprocedural Optimization (IPO / LTO) across project build targets (`CheckIPOSupported`) ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+- Added compiler and linker Release optimization flags for MSVC (`/O2 /Oi /Gy /Gw`, `/OPT:REF /OPT:ICF`) and GCC/Clang (`-O3 -ffunction-sections -fdata-sections`, `-Wl,--gc-sections`) ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+- Bumped project version to `0.3.0` across CMake, `vcpkg.json`, and C++ headers (`image_odb.h`) ([4bdffdb](https://github.com/ByaCherX/image-ODB/commit/4bdffdb)).
+
+---
+
 ## [v0.2.0] - 2026-09-09
 
 ### 🚀 Highlights & Features
@@ -47,6 +80,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Commit | Date | Author | Description |
 |---|---|---|---|
+| `4bdffdb` | 2026-09-11 | EmreKayal | feat: Add multithreaded AVIF encoding, IPO optimizations, and bump version to v0.3.0 |
+| `2da916e` | 2026-09-11 | EmreKayal | feat: Add WebP and TIFF codec support with decoding capabilities |
+| `50c0fc0` | 2026-09-10 | EmreKayal | feat: Enhance image codec functionality with new frame extraction and count methods |
+| `c451775` | 2026-09-10 | EmreKayal | feat: Add PNG codec support and update dependencies |
+| `4386aac` | 2026-09-09 | EmreKayal | Refactor caching system: remove CacheManager, LRU Cache, and Disk Cache |
+| `45133f5` | 2026-09-09 | EmreKayal | docs: Add CHANGELOG.md with commit summary for v0.2.0 release |
 | `29afffd` | 2026-09-09 | EmreKayal | Add CLI commands for image processing and database management |
 | `1a19a5a` | 2026-09-09 | EmreKayal | feat: Remove unused includes from multiple source files for cleaner code |
 | `bc9bf4e` | 2026-09-09 | EmreKayal | feat: Simplify default logger pattern by removing timestamp from formatting |
